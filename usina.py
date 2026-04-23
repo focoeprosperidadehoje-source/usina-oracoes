@@ -13,9 +13,6 @@ import gspread
 CHAVE_API = os.environ.get("GEMINI_API_KEY")
 GOOGLE_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 
-# ==============================================================================
-# 2. AUTENTICAÇÃO INVISÍVEL (SEM POP-UP)
-# ==============================================================================
 print("🔐 Autenticando no Google Sheets via Service Account...")
 credenciais_dict = json.loads(GOOGLE_JSON)
 escopos =['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -25,7 +22,7 @@ gc = gspread.authorize(credenciais)
 client = Client(api_key=CHAVE_API, http_options={'api_version': 'v1'})
 
 # ==============================================================================
-# 3. CONFIGURAÇÕES DA FÁBRICA
+# 2. CONFIGURAÇÕES DA FÁBRICA
 # ==============================================================================
 ID_PLANILHA = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"
 
@@ -51,17 +48,17 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 4. LÓGICA DE DATA AUTOMÁTICA (O MOTOR PERPÉTUO)
+# 3. LÓGICA DE DATA E LINHA EXATA (MÉTODO SNIPER)
 # ==============================================================================
-dados = aba.get_all_records()
+valores_coluna_b = aba.col_values(2)
+proxima_linha_vazia = len(valores_coluna_b) + 1 
 
-ultima_data_str = None
-if len(dados) > 0:
-    ultima_data_str = str(dados[-1].get('Data', '')).strip()
+valores_coluna_a = aba.col_values(1)
+datas_validas =[d for d in valores_coluna_a[1:] if d.strip()] 
 
-if ultima_data_str:
+if datas_validas:
     try:
-        ultima_data = datetime.datetime.strptime(ultima_data_str, '%Y-%m-%d').date()
+        ultima_data = datetime.datetime.strptime(datas_validas[-1], '%Y-%m-%d').date()
         data_alvo = ultima_data + datetime.timedelta(days=1)
     except:
         data_alvo = datetime.date.today()
@@ -72,10 +69,10 @@ dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
 
 print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
-print("⚙️ Iniciando a produção dos 4 vídeos do dia...\n")
+print(f"🎯 O robô vai começar a escrever exatamente na Linha {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 5. PRODUÇÃO EM MASSA
+# 4. PRODUÇÃO EM MASSA
 # ==============================================================================
 for video in GRADE_DIARIA:
     horario = video["horario"]
@@ -99,6 +96,9 @@ for video in GRADE_DIARIA:
 
     time.sleep(3)
 
+    # ==========================================================================
+    # PROMPT CORRIGIDO COM "APROXIMADAMENTE" EM TODAS AS INSTRUÇÕES
+    # ==========================================================================
     prompt_principal = f"""
     Actúa como un Sacerdote y Teólogo mexicano. 
     Escribe una oración de aproximadamente 1500 palabras sobre el tema "{tema_gerado}" para {persona}. 
@@ -107,13 +107,13 @@ for video in GRADE_DIARIA:
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
     TITULO:[Escribe aquí un título magnético y chamativo]
-    GUION:[Escribe aquí la oración completa de 1500 palabras]
+    GUION:[Escribe aquí la oración completa de aproximadamente 1500 palabras]
     DESC:[Escribe aquí una descripción persuasiva para YouTube]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
     
     try:
-        print(f"   ⏳ Escrevendo roteiro de 1500 palabras...")
+        print(f"   ⏳ Escrevendo roteiro de aproximadamente 1500 palabras...")
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_principal)
         texto_ia = response.text
         
@@ -132,8 +132,12 @@ for video in GRADE_DIARIA:
             tema_gerado, titulo_final, roteiro_final, tags_final, desc_final, "Pendente"
         ]
         
-        aba.append_row(nova_linha)
-        print(f"   ✅ SUCESSO! Linha adicionada na planilha.")
+        intervalo = f"A{proxima_linha_vazia}:K{proxima_linha_vazia}"
+        aba.update(intervalo, [nova_linha])
+        
+        print(f"   ✅ SUCESSO! Linha {proxima_linha_vazia} preenchida perfeitamente.")
+        
+        proxima_linha_vazia += 1 
         time.sleep(5)
         
     except Exception as e:
