@@ -89,43 +89,52 @@ for video in GRADE_DIARIA:
     Responde SOLO con el tema, sin comillas.
     """
     
-    for tentativa in range(3): # Tenta até 3 vezes
+    for tentativa in range(3):
         try:
             resp_tema = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_tema)
             tema_gerado = resp_tema.text.strip()
             print(f"   ✨ Tema Criado: {tema_gerado}")
-            break # Deu certo, sai do loop de tentativas
+            break 
         except Exception as e:
             print(f"   ⚠️ Servidor ocupado (Tentativa {tentativa+1}/3). Aguardando 15s...")
             time.sleep(15)
             
     if not tema_gerado:
         print("   ❌ Falha definitiva no tema. Pulando este vídeo.")
-        continue # Pula para o próximo vídeo da grade
+        continue 
 
     time.sleep(3)
 
-    # --- TENTATIVAS PARA O ROTEIRO ---
+    # ==========================================================================
+    # NOVO PROMPT: OTIMIZADO PARA RETENÇÃO YOUTUBE E VOZ TTS
+    # ==========================================================================
     texto_ia = None
     prompt_principal = f"""
-    Actúa como un Sacerdote y Teólogo mexicano. 
+    Actúa como un guía espiritual y hermano en la fe (mexicano), con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
     Escribe una oración de aproximadamente 1500 palabras sobre el tema "{tema_gerado}" para {persona}. 
-    Asegúrate de concluir el razonamiento y la oración de forma natural y completa.
+    
+    REGLAS CRÍTICAS DE RETENCIÓN Y AUDIO (TTS):
+    1. GANCHO INICIAL (0-60s): NO te presentes ni digas tu profesión. Empieza la primera línea directamente con una invocación emocional, fuerte y magnética que conecte con el dolor o la esperanza del oyente.
+    2. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 a 4 líneas). Usa mucha puntuación (comas, puntos) para crear pausas respiratorias naturales para la voz artificial.
+    3. CERCANÍA: Usa palabras de conexión popular mexicana ("hermano", "hijo tuyo", "Señor mío").
+    4. CIERRE: Concluye el razonamiento de forma natural y completa.
+    
     Idioma: Español de México. NO guion de cine.
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
     TITULO:[Escribe aquí un título magnético y chamativo]
-    GUION:[Escribe aquí la oración completa de aproximadamente 1500 palabras]
+    GUION:[Escribe aquí la oración completa de aproximadamente 1500 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción persuasiva para YouTube]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
+    # ==========================================================================
     
-    for tentativa in range(3): # Tenta até 3 vezes
+    for tentativa in range(3): 
         try:
-            print(f"   ⏳ Escrevendo roteiro de aprox. 1500 palabras (Tentativa {tentativa+1}/3)...")
+            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/3)...")
             response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_principal)
             texto_ia = response.text
-            break # Deu certo, sai do loop
+            break 
         except Exception as e:
             print(f"   ⚠️ Servidor ocupado (Tentativa {tentativa+1}/3). Aguardando 20s...")
             time.sleep(20)
