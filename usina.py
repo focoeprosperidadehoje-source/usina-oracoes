@@ -22,7 +22,7 @@ gc = gspread.authorize(credenciais)
 client = Client(api_key=CHAVE_API, http_options={'api_version': 'v1'})
 
 # ==============================================================================
-# 2. CONFIGURAÇÕES DA FÁBRICA
+# 2. CONFIGURAÇÕES DA FÁBRICA E BRIEFING TEOLÓGICO
 # ==============================================================================
 ID_PLANILHA = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"
 
@@ -36,11 +36,12 @@ PILARES = {
     6: "Gratitud y Resurrección (Domingo)"
 }
 
+# GRADE ATUALIZADA COM O SEU BRIEFING DE ENERGIA POR HORÁRIO
 GRADE_DIARIA =[
-    {"horario": "06:00", "personagem": "Jesus", "idioma": "ES"},
-    {"horario": "14:00", "personagem": "Maria", "idioma": "ES"},
-    {"horario": "18:00", "personagem": "Maria", "idioma": "ES"},
-    {"horario": "21:00", "personagem": "Jesus", "idioma": "ES"}
+    {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección para el día que nace."},
+    {"horario": "14:00", "personagem": "Maria", "idioma": "ES", "foco": "Tarde: Intercesión por la familia, salud y las aflicciones del medio día."},
+    {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer: Acogimiento maternal, Ave María y gratitud por el día."},
+    {"horario": "21:00", "personagem": "Jesus", "idioma": "ES", "foco": "Noche: Entrega del sueño, perdón y descanso profundo en Dios."}
 ]
 
 print("📡 Conectando à planilha online...")
@@ -78,6 +79,7 @@ for video in GRADE_DIARIA:
     horario = video["horario"]
     persona = video["personagem"]
     idioma = video["idioma"]
+    foco_teologico = video["foco"]
     
     print(f"🎬 PRODUZINDO SLOT: {horario} | Personagem: {persona}")
     
@@ -85,7 +87,7 @@ for video in GRADE_DIARIA:
     tema_gerado = None
     prompt_tema = f"""
     Actúa como un Teólogo católico. Crea un tema corto (máximo 8 palabras) para una oración. 
-    El enfoque principal (pilar) es '{pilar_do_dia}' y la oración está dirigida a '{persona}'. 
+    El enfoque principal (pilar) es '{pilar_do_dia}', la oración está dirigida a '{persona}' y el momento del día es '{foco_teologico}'. 
     Responde SOLO con el tema, sin comillas.
     """
     
@@ -105,17 +107,18 @@ for video in GRADE_DIARIA:
 
     time.sleep(3)
 
-    # ==========================================================================
-    # NOVO PROMPT: OTIMIZADO PARA RETENÇÃO YOUTUBE E VOZ TTS
-    # ==========================================================================
+    # --- TENTATIVAS PARA O ROTEIRO ---
     texto_ia = None
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe (mexicano), con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
     Escribe una oración de aproximadamente 1500 palabras sobre el tema "{tema_gerado}" para {persona}. 
     
+    CONTEXTO OBLIGATORIO DEL HORARIO:
+    Esta oración será publicada a las {horario}. El enfoque teológico y la energía de la oración DEBE ser: "{foco_teologico}". Adapta el tono a este momento del día.
+    
     REGLAS CRÍTICAS DE RETENCIÓN Y AUDIO (TTS):
-    1. GANCHO INICIAL (0-60s): NO te presentes ni digas tu profesión. Empieza la primera línea directamente con una invocación emocional, fuerte y magnética que conecte con el dolor o la esperanza del oyente.
-    2. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 a 4 líneas). Usa mucha puntuación (comas, puntos) para crear pausas respiratorias naturales para la voz artificial.
+    1. GANCHO INICIAL (0-60s): NO te presentes ni digas tu profesión. Empieza la primera línea directamente con una invocación emocional, fuerte y magnética.
+    2. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 a 4 líneas). Usa mucha puntuación (comas, puntos) para crear pausas respiratorias naturales.
     3. CERCANÍA: Usa palabras de conexión popular mexicana ("hermano", "hijo tuyo", "Señor mío").
     4. CIERRE: Concluye el razonamiento de forma natural y completa.
     
@@ -127,7 +130,6 @@ for video in GRADE_DIARIA:
     DESC:[Escribe aquí una descripción persuasiva para YouTube]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
-    # ==========================================================================
     
     for tentativa in range(3): 
         try:
@@ -155,6 +157,7 @@ for video in GRADE_DIARIA:
         desc_final = desc_match.group(1).strip() if desc_match else "Descrição Padrão"
         tags_final = tags_match.group(1).strip() if tags_match else "Tags"
         
+        # AQUI ESTÁ A GARANTIA DO STATUS AUTOMÁTICO
         nova_linha =[
             str(data_alvo), horario, "Pronto p/ Áudio", persona, idioma, 
             tema_gerado, titulo_final, roteiro_final, tags_final, desc_final, "Pendente"
