@@ -36,7 +36,6 @@ PILARES = {
     6: "Gratitud y Resurrección (Domingo)"
 }
 
-# GRADE ATUALIZADA COM O SEU BRIEFING DE ENERGIA POR HORÁRIO
 GRADE_DIARIA =[
     {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección para el día que nace."},
     {"horario": "14:00", "personagem": "Maria", "idioma": "ES", "foco": "Tarde: Intercesión por la familia, salud y las aflicciones del medio día."},
@@ -116,11 +115,13 @@ for video in GRADE_DIARIA:
     CONTEXTO OBLIGATORIO DEL HORARIO:
     Esta oración será publicada a las {horario}. El enfoque teológico y la energía de la oración DEBE ser: "{foco_teologico}". Adapta el tono a este momento del día.
     
-    REGLAS CRÍTICAS DE RETENCIÓN Y AUDIO (TTS):
-    1. GANCHO INICIAL (0-60s): NO te presentes ni digas tu profesión. Empieza la primera línea directamente con una invocación emocional, fuerte y magnética.
-    2. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 a 4 líneas). Usa mucha puntuación (comas, puntos) para crear pausas respiratorias naturales.
-    3. CERCANÍA: Usa palabras de conexión popular mexicana ("hermano", "hijo tuyo", "Señor mío").
-    4. CIERRE: Concluye el razonamiento de forma natural y completa.
+    REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN (¡MUY IMPORTANTE!):
+    1. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con una invocación emocional y magnética.
+    2. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 líneas). Usa mucha puntuación para crear pausas respiratorias.
+    3. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física (ej: "carne destrozada", "latigazos", "sangre derramada"). Usa metáforas suaves ("sufrimiento", "sacrificio por amor", "entrega total") para evitar desmonetización.
+    4. LENGUAJE TTS-FRIENDLY: Evita palabras arcaicas o difíciles de pronunciar (ej: "ignominioso", "asechanzas"). Usa un vocabulario devocional pero moderno y claro.
+    5. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales. El TTS suena robótico con ellas. Mantén una emoción profunda pero serena.
+    6. CIERRE: Concluye el razonamiento de forma natural y completa.
     
     Idioma: Español de México. NO guion de cine.
     
@@ -157,7 +158,6 @@ for video in GRADE_DIARIA:
         desc_final = desc_match.group(1).strip() if desc_match else "Descrição Padrão"
         tags_final = tags_match.group(1).strip() if tags_match else "Tags"
         
-        # AQUI ESTÁ A GARANTIA DO STATUS AUTOMÁTICO
         nova_linha =[
             str(data_alvo), horario, "Pronto p/ Áudio", persona, idioma, 
             tema_gerado, titulo_final, roteiro_final, tags_final, desc_final, "Pendente"
