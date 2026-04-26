@@ -108,16 +108,16 @@ for video in GRADE_DIARIA:
     texto_ia = None
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe, con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
-    Escribe una oración de aproximadamente 1500 palabras sobre el tema "{tema_gerado}" para {persona}. 
+    Escribe una oración extensa y profunda de MÍNIMO 1800 palabras sobre el tema "{tema_gerado}" para {persona}. 
     
     CONTEXTO OBLIGATORIO DEL HORARIO:
     Esta oración será publicada a las {horario}. El enfoque teológico y la energía de la oración DEBE ser: "{foco_teologico}". Adapta el tono a este momento del día.
     
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
-    1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos (como México, Colombia, etc.) o nacionalidades. Usa un Español Latino neutro, universal y acogedor.
+    1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro, universal y acogedor.
     2. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con una invocación emocional y magnética.
     3. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 líneas). Usa mucha puntuación para crear pausas respiratorias.
-    4. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física (ej: "carne destrozada", "sangre derramada"). Usa metáforas suaves.
+    4. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     5. LENGUAJE TTS-FRIENDLY: Evita palabras arcaicas o difíciles de pronunciar.
     6. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
     7. CIERRE: Concluye el razonamiento de forma natural y completa.
@@ -126,7 +126,7 @@ for video in GRADE_DIARIA:
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
     TITULO:[Escribe aquí un título magnético y chamativo]
-    GUION:[Escribe aquí la oración completa de aproximadamente 1500 palabras siguiendo las reglas]
+    GUION:[Escribe aquí la oración completa de MÍNIMO 1800 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción persuasiva para YouTube]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
