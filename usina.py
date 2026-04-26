@@ -69,7 +69,7 @@ dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
 
 print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
-print(f"🎯 O robô vai começar a escrever exatamente na Linha {proxima_linha_vazia}...\n")
+print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
 # 4. PRODUÇÃO EM MASSA (COM BLINDAGEM DE ERROS)
@@ -82,7 +82,6 @@ for video in GRADE_DIARIA:
     
     print(f"🎬 PRODUZINDO SLOT: {horario} | Personagem: {persona}")
     
-    # --- TENTATIVAS PARA O TEMA ---
     tema_gerado = None
     prompt_tema = f"""
     Actúa como un Teólogo católico. Crea un tema corto (máximo 8 palabras) para una oración. 
@@ -106,24 +105,24 @@ for video in GRADE_DIARIA:
 
     time.sleep(3)
 
-    # --- TENTATIVAS PARA O ROTEIRO ---
     texto_ia = None
     prompt_principal = f"""
-    Actúa como un guía espiritual y hermano en la fe (mexicano), con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
+    Actúa como un guía espiritual y hermano en la fe, con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
     Escribe una oración de aproximadamente 1500 palabras sobre el tema "{tema_gerado}" para {persona}. 
     
     CONTEXTO OBLIGATORIO DEL HORARIO:
     Esta oración será publicada a las {horario}. El enfoque teológico y la energía de la oración DEBE ser: "{foco_teologico}". Adapta el tono a este momento del día.
     
-    REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN (¡MUY IMPORTANTE!):
-    1. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con una invocación emocional y magnética.
-    2. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 líneas). Usa mucha puntuación para crear pausas respiratorias.
-    3. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física (ej: "carne destrozada", "latigazos", "sangre derramada"). Usa metáforas suaves ("sufrimiento", "sacrificio por amor", "entrega total") para evitar desmonetización.
-    4. LENGUAJE TTS-FRIENDLY: Evita palabras arcaicas o difíciles de pronunciar (ej: "ignominioso", "asechanzas"). Usa un vocabulario devocional pero moderno y claro.
-    5. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales. El TTS suena robótico con ellas. Mantén una emoción profunda pero serena.
-    6. CIERRE: Concluye el razonamiento de forma natural y completa.
+    REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
+    1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos (como México, Colombia, etc.) o nacionalidades. Usa un Español Latino neutro, universal y acogedor.
+    2. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con una invocación emocional y magnética.
+    3. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 líneas). Usa mucha puntuación para crear pausas respiratorias.
+    4. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física (ej: "carne destrozada", "sangre derramada"). Usa metáforas suaves.
+    5. LENGUAJE TTS-FRIENDLY: Evita palabras arcaicas o difíciles de pronunciar.
+    6. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
+    7. CIERRE: Concluye el razonamiento de forma natural y completa.
     
-    Idioma: Español de México. NO guion de cine.
+    Idioma: Español Latino Neutro. NO guion de cine.
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
     TITULO:[Escribe aquí un título magnético y chamativo]
@@ -146,7 +145,6 @@ for video in GRADE_DIARIA:
         print("   ❌ Falha definitiva no roteiro. Pulando este vídeo.")
         continue
 
-    # --- FATIADOR E SALVAMENTO ---
     try:
         titulo_match = re.search(r'TITULO:\s*(.*?)(?=GUION:|DESC:|TAGS:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         guion_match = re.search(r'GUION:\s*(.*?)(?=DESC:|TAGS:|TITULO:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
@@ -164,7 +162,7 @@ for video in GRADE_DIARIA:
         ]
         
         intervalo = f"A{proxima_linha_vazia}:K{proxima_linha_vazia}"
-        aba.update(intervalo, [nova_linha])
+        aba.update(intervalo,[nova_linha])
         
         print(f"   ✅ SUCESSO! Linha {proxima_linha_vazia} preenchida perfeitamente.")
         
