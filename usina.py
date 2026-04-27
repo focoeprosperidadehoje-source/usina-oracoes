@@ -126,8 +126,9 @@ for video in GRADE_DIARIA:
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
     TITULO:[Escribe aquí un título magnético y chamativo]
+    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
     GUION:[Escribe aquí la oración completa de MÍNIMO 1800 palabras siguiendo las reglas]
-    DESC:[Escribe aquí una descripción persuasiva para YouTube]
+    DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, usando palabras clave de cola larga relacionadas a la oración, sanación y fe]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
     
@@ -146,22 +147,26 @@ for video in GRADE_DIARIA:
         continue
 
     try:
-        titulo_match = re.search(r'TITULO:\s*(.*?)(?=GUION:|DESC:|TAGS:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
-        guion_match = re.search(r'GUION:\s*(.*?)(?=DESC:|TAGS:|TITULO:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
-        desc_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|TITULO:|GUION:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
-        tags_match = re.search(r'TAGS:\s*(.*?)(?=TITULO:|GUION:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        titulo_match = re.search(r'TITULO:\s*(.*?)(?=THUMB:|GUION:|DESC:|TAGS:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        thumb_match = re.search(r'THUMB:\s*(.*?)(?=GUION:|DESC:|TAGS:|TITULO:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        guion_match = re.search(r'GUION:\s*(.*?)(?=DESC:|TAGS:|TITULO:|THUMB:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        desc_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|TITULO:|THUMB:|GUION:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        tags_match = re.search(r'TAGS:\s*(.*?)(?=TITULO:|THUMB:|GUION:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         
         titulo_final = titulo_match.group(1).strip() if titulo_match else "Título Padrão"
+        thumb_final = thumb_match.group(1).strip() if thumb_match else "ORACIÓN PODEROSA"
         roteiro_final = guion_match.group(1).strip() if guion_match else texto_ia 
-        desc_final = desc_match.group(1).strip() if desc_match else "Descrição Padrão"
+        desc_final = desc_match.group(1).strip() if desc_match else "Descripción Padrão"
         tags_final = tags_match.group(1).strip() if tags_match else "Tags"
         
+        # Agora a nova_linha tem 12 itens (O thumb_final entra na coluna L)
         nova_linha =[
             str(data_alvo), horario, "Pronto p/ Áudio", persona, idioma, 
-            tema_gerado, titulo_final, roteiro_final, tags_final, desc_final, "Pendente"
+            tema_gerado, titulo_final, roteiro_final, tags_final, desc_final, "Pendente", thumb_final
         ]
         
-        intervalo = f"A{proxima_linha_vazia}:K{proxima_linha_vazia}"
+        # Atualiza da coluna A até a L
+        intervalo = f"A{proxima_linha_vazia}:L{proxima_linha_vazia}"
         aba.update(intervalo,[nova_linha])
         
         print(f"   ✅ SUCESSO! Linha {proxima_linha_vazia} preenchida perfeitamente.")
