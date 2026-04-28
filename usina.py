@@ -72,7 +72,7 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 4. PRODUÇÃO EM MASSA (COM BLINDAGEM DE ERROS)
+# 4. PRODUÇÃO EM MASSA (COM BLINDAGEM DE ERROS E RAIO-X)
 # ==============================================================================
 for video in GRADE_DIARIA:
     horario = video["horario"]
@@ -89,26 +89,28 @@ for video in GRADE_DIARIA:
     Responde SOLO con el tema, sin comillas.
     """
     
-    for tentativa in range(3):
+    # Aumentado para 5 tentativas com 30s de espera
+    for tentativa in range(5):
         try:
             resp_tema = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_tema)
             tema_gerado = resp_tema.text.strip()
             print(f"   ✨ Tema Criado: {tema_gerado}")
             break 
         except Exception as e:
-            print(f"   ⚠️ Servidor ocupado (Tentativa {tentativa+1}/3). Aguardando 15s...")
-            time.sleep(15)
+            print(f"   ⚠️ Falha na IA (Tentativa {tentativa+1}/5). Aguardando 30s...")
+            print(f"   🔍 DETALHE DO ERRO: {e}")
+            time.sleep(30)
             
     if not tema_gerado:
         print("   ❌ Falha definitiva no tema. Pulando este vídeo.")
         continue 
 
-    time.sleep(3)
+    time.sleep(5)
 
     texto_ia = None
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe, con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
-    Escribe una oración extensa y profunda de MÍNIMO 1800 palabras sobre el tema "{tema_gerado}" para {persona}. 
+    Escribe una oración extensa y profunda de aproximadamente 1500 a 1800 palabras sobre el tema "{tema_gerado}" para {persona}. 
     
     CONTEXTO OBLIGATORIO DEL HORARIO:
     Esta oración será publicada a las {horario}. El enfoque teológico y la energía de la oración DEBE ser: "{foco_teologico}". Adapta el tono a este momento del día.
@@ -127,20 +129,22 @@ for video in GRADE_DIARIA:
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
     TITULO:[Escribe aquí un título magnético y chamativo]
     THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
-    GUION:[Escribe aquí la oración completa de MÍNIMO 1800 palabras siguiendo las reglas]
+    GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, usando palabras clave de cola larga relacionadas a la oración, sanación y fe]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
     
-    for tentativa in range(3): 
+    # Aumentado para 5 tentativas com 45s de espera
+    for tentativa in range(5): 
         try:
-            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/3)...")
+            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/5)...")
             response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_principal)
             texto_ia = response.text
             break 
         except Exception as e:
-            print(f"   ⚠️ Servidor ocupado (Tentativa {tentativa+1}/3). Aguardando 20s...")
-            time.sleep(20)
+            print(f"   ⚠️ Falha na IA (Tentativa {tentativa+1}/5). Aguardando 45s...")
+            print(f"   🔍 DETALHE DO ERRO: {e}")
+            time.sleep(45)
             
     if not texto_ia:
         print("   ❌ Falha definitiva no roteiro. Pulando este vídeo.")
@@ -159,13 +163,11 @@ for video in GRADE_DIARIA:
         desc_final = desc_match.group(1).strip() if desc_match else "Descripción Padrão"
         tags_final = tags_match.group(1).strip() if tags_match else "Tags"
         
-        # Agora a nova_linha tem 12 itens (O thumb_final entra na coluna L)
         nova_linha =[
             str(data_alvo), horario, "Pronto p/ Áudio", persona, idioma, 
             tema_gerado, titulo_final, roteiro_final, tags_final, desc_final, "Pendente", thumb_final
         ]
         
-        # Atualiza da coluna A até a L
         intervalo = f"A{proxima_linha_vazia}:L{proxima_linha_vazia}"
         aba.update(intervalo,[nova_linha])
         
