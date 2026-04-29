@@ -89,10 +89,10 @@ for video in GRADE_DIARIA:
     Responde SOLO con el tema, sin comillas.
     """
     
-    # Aumentado para 5 tentativas com 30s de espera
     for tentativa in range(5):
         try:
-            resp_tema = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_tema)
+            # MUDANÇA PARA O MODELO LITE (Mais rápido e menos congestionado)
+            resp_tema = client.models.generate_content(model='gemini-3.1-flash-lite', contents=prompt_tema)
             tema_gerado = resp_tema.text.strip()
             print(f"   ✨ Tema Criado: {tema_gerado}")
             break 
@@ -134,11 +134,11 @@ for video in GRADE_DIARIA:
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
     
-    # Aumentado para 5 tentativas com 45s de espera
     for tentativa in range(5): 
         try:
             print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/5)...")
-            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_principal)
+            # MUDANÇA PARA O MODELO LITE
+            response = client.models.generate_content(model='gemini-3.1-flash-lite', contents=prompt_principal)
             texto_ia = response.text
             break 
         except Exception as e:
