@@ -72,12 +72,11 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 4. PRODUÇÃO EM MASSA (ESPERA EXPONENCIAL + FALLBACK MODEL)
+# 4. PRODUÇÃO EM MASSA (ESPERA EXPONENCIAL CORRIGIDA)
 # ==============================================================================
-# Tempos de espera: 10s, 20s, 40s, 80s, 120s
 esperas_exponenciais =[10, 20, 40, 80, 120]
-# Modelos: Tenta o Flash 3 vezes. Se falhar, usa o 8b (mais leve) nas últimas 2 tentativas
-modelos_fallback =['gemini-1.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-flash-8b']
+# CORREÇÃO: Usando exclusivamente o modelo ativo de 2026
+modelo_oficial = 'gemini-2.5-flash'
 
 for video in GRADE_DIARIA:
     horario = video["horario"]
@@ -87,7 +86,6 @@ for video in GRADE_DIARIA:
     
     print(f"🎬 PRODUZINDO SLOT: {horario} | Personagem: {persona}")
     
-    # --- INTELIGÊNCIA DE ABERTURA POR PILAR ---
     instrucao_abertura = ""
     if "Protección" in pilar_do_dia:
         instrucao_abertura = "Comienza la oración reconociendo una amenaza o dificultad invisible, y luego invoca la protección divina."
@@ -104,7 +102,6 @@ for video in GRADE_DIARIA:
     elif "Gratitud" in pilar_do_dia:
         instrucao_abertura = "Comienza la oración con un fuerte y alegre louvor por el milagro de la vida y la resurrección."
 
-    # --- GERAÇÃO DO TEMA ---
     tema_gerado = None
     prompt_tema = f"""
     Actúa como un Teólogo católico. Crea un tema corto (máximo 8 palabras) para una oración. 
@@ -114,10 +111,9 @@ for video in GRADE_DIARIA:
     
     for tentativa in range(5):
         try:
-            modelo_atual = modelos_fallback[tentativa]
-            resp_tema = client.models.generate_content(model=modelo_atual, contents=prompt_tema)
+            resp_tema = client.models.generate_content(model=modelo_oficial, contents=prompt_tema)
             tema_gerado = resp_tema.text.strip()
-            print(f"   ✨ Tema Criado ({modelo_atual}): {tema_gerado}")
+            print(f"   ✨ Tema Criado: {tema_gerado}")
             break 
         except Exception as e:
             espera = esperas_exponenciais[tentativa]
@@ -131,7 +127,6 @@ for video in GRADE_DIARIA:
 
     time.sleep(5)
 
-    # --- GERAÇÃO DO ROTEIRO ---
     texto_ia = None
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe, con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
@@ -162,9 +157,8 @@ for video in GRADE_DIARIA:
     
     for tentativa in range(5): 
         try:
-            modelo_atual = modelos_fallback[tentativa]
-            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/5 com {modelo_atual})...")
-            response = client.models.generate_content(model=modelo_atual, contents=prompt_principal)
+            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/5)...")
+            response = client.models.generate_content(model=modelo_oficial, contents=prompt_principal)
             texto_ia = response.text
             break 
         except Exception as e:
