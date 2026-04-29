@@ -72,8 +72,13 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 4. PRODUÇÃO EM MASSA (COM BLINDAGEM DE ERROS E RAIO-X)
+# 4. PRODUÇÃO EM MASSA (ESPERA EXPONENCIAL + FALLBACK MODEL)
 # ==============================================================================
+# Tempos de espera: 10s, 20s, 40s, 80s, 120s
+esperas_exponenciais =[10, 20, 40, 80, 120]
+# Modelos: Tenta o Flash 3 vezes. Se falhar, usa o 8b (mais leve) nas últimas 2 tentativas
+modelos_fallback =['gemini-1.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-flash-8b']
+
 for video in GRADE_DIARIA:
     horario = video["horario"]
     persona = video["personagem"]
@@ -82,6 +87,24 @@ for video in GRADE_DIARIA:
     
     print(f"🎬 PRODUZINDO SLOT: {horario} | Personagem: {persona}")
     
+    # --- INTELIGÊNCIA DE ABERTURA POR PILAR ---
+    instrucao_abertura = ""
+    if "Protección" in pilar_do_dia:
+        instrucao_abertura = "Comienza la oración reconociendo una amenaza o dificultad invisible, y luego invoca la protección divina."
+    elif "Salud" in pilar_do_dia:
+        instrucao_abertura = "Comienza la oración con una profunda gratitud por el cuerpo, la salud y el aliento de vida, antes de pedir sanación."
+    elif "Familia" in pilar_do_dia:
+        instrucao_abertura = "Comienza la oración evocando una escena cotidiana y cálida del hogar y la familia."
+    elif "Prosperidad" in pilar_do_dia:
+        instrucao_abertura = "Comienza la oración reconociendo el esfuerzo, el sudor del trabajo diario y la necesidad de la providencia."
+    elif "Perdón" in pilar_do_dia:
+        instrucao_abertura = "Comienza la oración contemplando directamente el sacrificio en la cruz y el amor incondicional."
+    elif "Consagración" in pilar_do_dia:
+        instrucao_abertura = "Comienza la oración con una imagen poética y maternal de la Virgen María cubriéndonos con su manto."
+    elif "Gratitud" in pilar_do_dia:
+        instrucao_abertura = "Comienza la oración con un fuerte y alegre louvor por el milagro de la vida y la resurrección."
+
+    # --- GERAÇÃO DO TEMA ---
     tema_gerado = None
     prompt_tema = f"""
     Actúa como un Teólogo católico. Crea un tema corto (máximo 8 palabras) para una oración. 
@@ -91,15 +114,16 @@ for video in GRADE_DIARIA:
     
     for tentativa in range(5):
         try:
-            # MUDANÇA PARA O MODELO LITE (Mais rápido e menos congestionado)
-            resp_tema = client.models.generate_content(model='gemini-3.1-flash-lite', contents=prompt_tema)
+            modelo_atual = modelos_fallback[tentativa]
+            resp_tema = client.models.generate_content(model=modelo_atual, contents=prompt_tema)
             tema_gerado = resp_tema.text.strip()
-            print(f"   ✨ Tema Criado: {tema_gerado}")
+            print(f"   ✨ Tema Criado ({modelo_atual}): {tema_gerado}")
             break 
         except Exception as e:
-            print(f"   ⚠️ Falha na IA (Tentativa {tentativa+1}/5). Aguardando 30s...")
+            espera = esperas_exponenciais[tentativa]
+            print(f"   ⚠️ Falha na IA (Tentativa {tentativa+1}/5). Aguardando {espera}s...")
             print(f"   🔍 DETALHE DO ERRO: {e}")
-            time.sleep(30)
+            time.sleep(espera)
             
     if not tema_gerado:
         print("   ❌ Falha definitiva no tema. Pulando este vídeo.")
@@ -107,17 +131,19 @@ for video in GRADE_DIARIA:
 
     time.sleep(5)
 
+    # --- GERAÇÃO DO ROTEIRO ---
     texto_ia = None
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe, con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
     Escribe una oración extensa y profunda de aproximadamente 1500 a 1800 palabras sobre el tema "{tema_gerado}" para {persona}. 
     
-    CONTEXTO OBLIGATORIO DEL HORARIO:
-    Esta oración será publicada a las {horario}. El enfoque teológico y la energía de la oración DEBE ser: "{foco_teologico}". Adapta el tono a este momento del día.
+    CONTEXTO OBLIGATORIO DEL HORARIO Y PILAR:
+    Esta oración será publicada a las {horario}. El enfoque teológico DEBE ser: "{foco_teologico}". 
+    ESTRUCTURA DE APERTURA OBLIGATORIA: {instrucao_abertura}
     
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
     1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro, universal y acogedor.
-    2. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con una invocación emocional y magnética.
+    2. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con la instrucción de apertura dada arriba.
     3. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 líneas). Usa mucha puntuación para crear pausas respiratorias.
     4. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     5. LENGUAJE TTS-FRIENDLY: Evita palabras arcaicas o difíciles de pronunciar.
@@ -136,15 +162,16 @@ for video in GRADE_DIARIA:
     
     for tentativa in range(5): 
         try:
-            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/5)...")
-            # MUDANÇA PARA O MODELO LITE
-            response = client.models.generate_content(model='gemini-3.1-flash-lite', contents=prompt_principal)
+            modelo_atual = modelos_fallback[tentativa]
+            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/5 com {modelo_atual})...")
+            response = client.models.generate_content(model=modelo_atual, contents=prompt_principal)
             texto_ia = response.text
             break 
         except Exception as e:
-            print(f"   ⚠️ Falha na IA (Tentativa {tentativa+1}/5). Aguardando 45s...")
+            espera = esperas_exponenciais[tentativa]
+            print(f"   ⚠️ Falha na IA (Tentativa {tentativa+1}/5). Aguardando {espera}s...")
             print(f"   🔍 DETALHE DO ERRO: {e}")
-            time.sleep(45)
+            time.sleep(espera)
             
     if not texto_ia:
         print("   ❌ Falha definitiva no roteiro. Pulando este vídeo.")
