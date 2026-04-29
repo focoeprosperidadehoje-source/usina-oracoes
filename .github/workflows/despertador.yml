@@ -1,10 +1,10 @@
 name: Usina Automática Diária
 
-# O Despertador: Roda todo dia às 06:00 UTC (03:00 da manhã no Brasil)
+# O Despertador: Roda todo dia às 05:23 UTC (02:23 da manhã no Brasil)
 on:
   schedule:
-    - cron: '0 6 * * *'
-  workflow_dispatch: # Permite rodar manualmente clicando num botão
+    - cron: '23 5 * * *'
+  workflow_dispatch: 
 
 jobs:
   produzir_videos:
@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - name: Baixando o código da Usina
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Preparando o Python (O Motor)
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
