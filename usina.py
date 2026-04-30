@@ -141,7 +141,7 @@ for video in GRADE_DIARIA:
     4. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     5. LENGUAJE TTS-FRIENDLY: Evita palabras arcaicas o difíciles de pronunciar.
     6. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
-    7. CIERRE: Concluye el razonamiento de forma natural y completa.
+    7. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración con una bendición final. En la última frase, invita muy sutilmente y con mucho amor al oyente a dejar su petición en los comentarios (como un altar de intenciones) y a compartir esta luz con alguien que lo necesite. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes o suscripciones. Debe ser poético y devocional.
     
     Idioma: Español Latino Neutro. NO guion de cine.
     
