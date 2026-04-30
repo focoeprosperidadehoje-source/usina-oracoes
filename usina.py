@@ -72,11 +72,10 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 4. PRODUÇÃO EM MASSA (ESPERA EXPONENCIAL CORRIGIDA)
+# 4. PRODUÇÃO EM MASSA (ESPERA EXPONENCIAL)
 # ==============================================================================
 esperas_exponenciais =[10, 20, 40, 80, 120]
-# CORREÇÃO: Usando exclusivamente o modelo ativo de 2026
-modelo_oficial = 'gemini-2.5-flash'
+modelo_oficial = 'gemini-1.5-flash'
 
 for video in GRADE_DIARIA:
     horario = video["horario"]
@@ -118,7 +117,6 @@ for video in GRADE_DIARIA:
         except Exception as e:
             espera = esperas_exponenciais[tentativa]
             print(f"   ⚠️ Falha na IA (Tentativa {tentativa+1}/5). Aguardando {espera}s...")
-            print(f"   🔍 DETALHE DO ERRO: {e}")
             time.sleep(espera)
             
     if not tema_gerado:
@@ -139,7 +137,7 @@ for video in GRADE_DIARIA:
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
     1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro, universal y acogedor.
     2. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con la instrucción de apertura dada arriba.
-    3. RITMO DE AUDIO: Escribe en párrafos cortos (máximo 3 líneas). Usa mucha puntuación para crear pausas respiratorias.
+    3. RITMO DE AUDIO Y PAUSAS: Escribe en párrafos cortos (máximo 3 líneas). OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas dramáticas y reflexivas en la voz.
     4. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     5. LENGUAJE TTS-FRIENDLY: Evita palabras arcaicas o difíciles de pronunciar.
     6. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
@@ -151,7 +149,7 @@ for video in GRADE_DIARIA:
     TITULO:[Escribe aquí un título magnético y chamativo]
     THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
-    DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, usando palabras clave de cola larga relacionadas a la oración, sanación y fe]
+    DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, seguida obligatoriamente de 3 Capítulos/Timestamps (ej: 00:00 Inicio, 03:00 Oración, 07:00 Bendición)]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
     
@@ -164,7 +162,6 @@ for video in GRADE_DIARIA:
         except Exception as e:
             espera = esperas_exponenciais[tentativa]
             print(f"   ⚠️ Falha na IA (Tentativa {tentativa+1}/5). Aguardando {espera}s...")
-            print(f"   🔍 DETALHE DO ERRO: {e}")
             time.sleep(espera)
             
     if not texto_ia:
