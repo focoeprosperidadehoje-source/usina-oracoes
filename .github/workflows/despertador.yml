@@ -1,9 +1,10 @@
 name: Usina Automática Diária
 
-# O Despertador: Roda todo dia às 05:23 UTC (02:23 da manhã no Brasil)
 on:
   schedule:
     - cron: '23 5 * * *'
+    - cron: '23 7 * * *'
+    - cron: '23 9 * * *'
   workflow_dispatch: 
 
 jobs:
