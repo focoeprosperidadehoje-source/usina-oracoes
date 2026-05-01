@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import re
@@ -48,7 +49,7 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. LÓGICA DE DATA E LINHA EXATA (MÉTODO SNIPER)
+# 3. LÓGICA DE ESTOQUE DE 3 DIAS E MÉTODO SNIPER
 # ==============================================================================
 valores_coluna_b = aba.col_values(2)
 proxima_linha_vazia = len(valores_coluna_b) + 1 
@@ -56,15 +57,24 @@ proxima_linha_vazia = len(valores_coluna_b) + 1
 valores_coluna_a = aba.col_values(1)
 datas_validas =[d for d in valores_coluna_a[1:] if d.strip()] 
 
+hoje = datetime.date.today()
+meta_estoque = hoje + datetime.timedelta(days=3)
+
 if datas_validas:
     try:
         ultima_data = datetime.datetime.strptime(datas_validas[-1], '%Y-%m-%d').date()
-        data_alvo = ultima_data + datetime.timedelta(days=1)
     except:
-        data_alvo = datetime.date.today()
+        ultima_data = hoje - datetime.timedelta(days=1)
 else:
-    data_alvo = datetime.date.today()
+    ultima_data = hoje - datetime.timedelta(days=1)
 
+# TRAVA DE ESTOQUE
+if ultima_data >= meta_estoque:
+    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos até {ultima_data}. A meta era {meta_estoque}.")
+    print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
+    sys.exit(0)
+
+data_alvo = ultima_data + datetime.timedelta(days=1)
 dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
 
@@ -72,10 +82,10 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 4. PRODUÇÃO EM MASSA (ESPERA EXPONENCIAL)
+# 4. PRODUÇÃO EM MASSA (CASCATA DE IA + COPYWRITING AVANÇADO)
 # ==============================================================================
 esperas_exponenciais =[10, 20, 40, 80, 120]
-modelo_oficial = 'gemini-1.5-flash'
+modelos_cascata =['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
 
 for video in GRADE_DIARIA:
     horario = video["horario"]
@@ -83,23 +93,23 @@ for video in GRADE_DIARIA:
     idioma = video["idioma"]
     foco_teologico = video["foco"]
     
+    # DIVISÃO DA SEXTA-FEIRA (Perdão de manhã, Paixão à noite)
+    if dia_da_semana == 4: 
+        if horario in["06:00", "14:00"]:
+            foco_teologico += " ENFOQUE: Misericordia y Perdón (Tono suave y esperanzador)."
+        else:
+            foco_teologico += " ENFOQUE: La Pasión de Cristo y el Sacrificio (Tono profundo y reflexivo)."
+
     print(f"🎬 PRODUZINDO SLOT: {horario} | Personagem: {persona}")
     
     instrucao_abertura = ""
-    if "Protección" in pilar_do_dia:
-        instrucao_abertura = "Comienza la oración reconociendo una amenaza o dificultad invisible, y luego invoca la protección divina."
-    elif "Salud" in pilar_do_dia:
-        instrucao_abertura = "Comienza la oración con una profunda gratitud por el cuerpo, la salud y el aliento de vida, antes de pedir sanación."
-    elif "Familia" in pilar_do_dia:
-        instrucao_abertura = "Comienza la oración evocando una escena cotidiana y cálida del hogar y la familia."
-    elif "Prosperidad" in pilar_do_dia:
-        instrucao_abertura = "Comienza la oración reconociendo el esfuerzo, el sudor del trabajo diario y la necesidad de la providencia."
-    elif "Perdón" in pilar_do_dia:
-        instrucao_abertura = "Comienza la oración contemplando directamente el sacrificio en la cruz y el amor incondicional."
-    elif "Consagración" in pilar_do_dia:
-        instrucao_abertura = "Comienza la oración con una imagen poética y maternal de la Virgen María cubriéndonos con su manto."
-    elif "Gratitud" in pilar_do_dia:
-        instrucao_abertura = "Comienza la oración con un fuerte y alegre louvor por el milagro de la vida y la resurrección."
+    if "Protección" in pilar_do_dia: instrucao_abertura = "Comienza reconociendo una amenaza o dificultad invisible, y luego invoca la protección divina."
+    elif "Salud" in pilar_do_dia: instrucao_abertura = "Comienza con una profunda gratitud por el cuerpo y el aliento de vida, antes de pedir sanación."
+    elif "Familia" in pilar_do_dia: instrucao_abertura = "Comienza evocando una escena cotidiana y cálida del hogar y la familia."
+    elif "Prosperidad" in pilar_do_dia: instrucao_abertura = "Comienza reconociendo el esfuerzo, el sudor del trabajo diario y la necesidad de la providencia."
+    elif "Perdón" in pilar_do_dia: instrucao_abertura = "Comienza contemplando el amor incondicional y la necesidad de purificar el alma."
+    elif "Consagración" in pilar_do_dia: instrucao_abertura = "Comienza con una imagen poética y maternal de la Virgen María cubriéndonos con su manto."
+    elif "Gratitud" in pilar_do_dia: instrucao_abertura = "Comienza con un fuerte y alegre agradecimiento por el milagro de la vida."
 
     tema_gerado = None
     prompt_tema = f"""
@@ -110,9 +120,10 @@ for video in GRADE_DIARIA:
     
     for tentativa in range(5):
         try:
-            resp_tema = client.models.generate_content(model=modelo_oficial, contents=prompt_tema)
+            modelo_atual = modelos_cascata[tentativa]
+            resp_tema = client.models.generate_content(model=modelo_atual, contents=prompt_tema)
             tema_gerado = resp_tema.text.strip()
-            print(f"   ✨ Tema Criado: {tema_gerado}")
+            print(f"   ✨ Tema Criado ({modelo_atual}): {tema_gerado}")
             break 
         except Exception as e:
             espera = esperas_exponenciais[tentativa]
@@ -125,6 +136,11 @@ for video in GRADE_DIARIA:
 
     time.sleep(5)
 
+    # REGRA DE MEDITAÇÃO PARA 18H E 21H
+    regra_meditacao = ""
+    if horario in["18:00", "21:00"]:
+        regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar. Además, añade un 4º Capítulo en los Timestamps llamado 'Meditación y Paz Profunda'."
+
     texto_ia = None
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe, con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
@@ -132,31 +148,32 @@ for video in GRADE_DIARIA:
     
     CONTEXTO OBLIGATORIO DEL HORARIO Y PILAR:
     Esta oración será publicada a las {horario}. El enfoque teológico DEBE ser: "{foco_teologico}". 
-    ESTRUCTURA DE APERTURA OBLIGATORIA: {instrucao_abertura}
     
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
-    1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro, universal y acogedor.
-    2. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con la instrucción de apertura dada arriba.
-    3. RITMO DE AUDIO Y PAUSAS: Escribe en párrafos cortos (máximo 3 líneas). OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas dramáticas y reflexivas en la voz.
-    4. CENSURA GRÁFICA (YOUTUBE FRIENDLY): PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
-    5. LENGUAJE TTS-FRIENDLY: Evita palabras arcaicas o difíciles de pronunciar.
-    6. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
-    7. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración con una bendición final. En la última frase, invita muy sutilmente y con mucho amor al oyente a dejar su petición en los comentarios (como un altar de intenciones) y a compartir esta luz con alguien que lo necesite. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes o suscripciones. Debe ser poético y devocional.
+    1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro.
+    2. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con esta estructura: {instrucao_abertura}
+    3. PROFUNDIDAD: Concéntrate en UN SOLO TEMA central. PROHIBIDO hacer "listas de supermercado" pidiendo por muchas cosas diferentes. Profundiza en la emoción.
+    4. ARCO EN 3 ACTOS: Divide la oración en Vulnerabilidad -> Súplica -> Entrega/Gratitud.
+    5. RITMO DE AUDIO Y PAUSAS: Escribe en párrafos cortos (máximo 3 líneas). OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas dramáticas y reflexivas en la voz.
+    6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
+    7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
+    8. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
     
-    Idioma: Español Latino Neutro. NO guion de cine.
+    {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
     TITULO:[Escribe aquí un título magnético y chamativo]
     THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
-    DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, seguida obligatoriamente de 3 Capítulos/Timestamps (ej: 00:00 Inicio, 03:00 Oración, 07:00 Bendición)]
+    DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, seguida obligatoriamente de los Capítulos/Timestamps (ej: 00:00 Inicio, 03:00 Oración, 07:00 Bendición)]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
     
     for tentativa in range(5): 
         try:
-            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/5)...")
-            response = client.models.generate_content(model=modelo_oficial, contents=prompt_principal)
+            modelo_atual = modelos_cascata[tentativa]
+            print(f"   ⏳ Escrevendo roteiro otimizado (Tentativa {tentativa+1}/5 com {modelo_atual})...")
+            response = client.models.generate_content(model=modelo_atual, contents=prompt_principal)
             texto_ia = response.text
             break 
         except Exception as e:
