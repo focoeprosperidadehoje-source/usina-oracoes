@@ -55,7 +55,6 @@ todas_linhas = aba.get_all_values()
 total_linhas = len(todas_linhas)
 proxima_linha_vazia = total_linhas + 1
 
-# Pega apenas as últimas 16 linhas para não sobrecarregar a memória
 ultimas_linhas = todas_linhas[-16:] if total_linhas > 16 else todas_linhas[1:]
 
 dias_existentes = {}
@@ -77,11 +76,10 @@ for linha in ultimas_linhas:
             except:
                 pass
 
-meta_estoque = hoje + datetime.timedelta(days=2) # Hoje + 2 dias de frente
+meta_estoque = hoje + datetime.timedelta(days=2) 
 data_alvo = None
 grade_para_processar =[]
 
-# 1. Procurar buracos nos dias existentes
 for d_obj in sorted(dias_existentes.keys()):
     horarios = dias_existentes[d_obj]
     if 0 < len(horarios) < 4:
@@ -90,7 +88,6 @@ for d_obj in sorted(dias_existentes.keys()):
         print(f"⚠️ BURACO ENCONTRADO: Faltam horários no dia {data_alvo}.")
         break
 
-# 2. Se não achou buraco, verifica se precisa criar o próximo dia
 if not data_alvo:
     if maior_data < meta_estoque:
         data_alvo = maior_data + datetime.timedelta(days=1)
@@ -186,7 +183,7 @@ for video in grade_para_processar:
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
     TITULO:[Escribe aquí un título magnético y chamativo]
-    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
+    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS. DEBE ser una promesa urgente, un gatillo de curiosidad o un alivio inmediato (Ej: 'ÉL TE ESCUCHÓ', 'DUERME EN PAZ', 'ALGO GRANDE VIENE'). NUNCA uses títulos descriptivos.]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, seguida obligatoriamente de los Capítulos/Timestamps (ej: 00:00 Inicio, 03:00 Oración, 07:00 Bendición)]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
