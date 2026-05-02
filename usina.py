@@ -49,53 +49,43 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. RADAR DE 16 LINHAS E SCANNER DE BURACOS
+# 3. LÓGICA DE ESTOQUE E SCANNER DE BURACOS
 # ==============================================================================
-todas_linhas = aba.get_all_values()
-total_linhas = len(todas_linhas)
-proxima_linha_vazia = total_linhas + 1
+valores_coluna_b = aba.col_values(2) 
+proxima_linha_vazia = len(valores_coluna_b) + 1 
 
-ultimas_linhas = todas_linhas[-16:] if total_linhas > 16 else todas_linhas[1:]
+valores_coluna_a = aba.col_values(1) 
+datas_validas =[d.strip() for d in valores_coluna_a[1:] if d.strip()] 
+horarios_validos =[h.strip() for h in valores_coluna_b[1:] if h.strip()]
 
 dias_existentes = {}
+for d, h in zip(datas_validas, horarios_validos):
+    if d not in dias_existentes:
+        dias_existentes[d] = []
+    dias_existentes[d].append(h)
+
 hoje = datetime.date.today()
-maior_data = hoje - datetime.timedelta(days=1)
+meta_estoque = hoje + datetime.timedelta(days=3)
 
-for linha in ultimas_linhas:
-    if len(linha) >= 2:
-        d_str = linha[0].strip()
-        h_str = linha[1].strip()
-        if d_str and h_str:
-            try:
-                d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
-                if d_obj not in dias_existentes:
-                    dias_existentes[d_obj] = []
-                dias_existentes[d_obj].append(h_str)
-                if d_obj > maior_data:
-                    maior_data = d_obj
-            except:
-                pass
-
-meta_estoque = hoje + datetime.timedelta(days=2) 
 data_alvo = None
 grade_para_processar =[]
 
-for d_obj in sorted(dias_existentes.keys()):
-    horarios = dias_existentes[d_obj]
-    if 0 < len(horarios) < 4:
-        data_alvo = d_obj
-        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios]
-        print(f"⚠️ BURACO ENCONTRADO: Faltam horários no dia {data_alvo}.")
-        break
+data_check = hoje
+while data_check <= meta_estoque:
+    data_str = data_check.strftime('%Y-%m-%d')
+    horarios_presentes = dias_existentes.get(data_str,[])
+    
+    if len(horarios_presentes) < len(GRADE_DIARIA):
+        data_alvo = data_check
+        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
+        break 
+        
+    data_check += datetime.timedelta(days=1)
 
 if not data_alvo:
-    if maior_data < meta_estoque:
-        data_alvo = maior_data + datetime.timedelta(days=1)
-        grade_para_processar = GRADE_DIARIA
-    else:
-        print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {maior_data}.")
-        print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
-        sys.exit(0)
+    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque - datetime.timedelta(days=1)}.")
+    print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
+    sys.exit(0)
 
 dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
@@ -178,12 +168,13 @@ for video in grade_para_processar:
     6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
     8. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
+    9. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas alrededor de las etiquetas.
     
     {regra_meditacao}
     
-    DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
+    DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas al inicio de cada sección:
     TITULO:[Escribe aquí un título magnético y chamativo]
-    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS. DEBE ser una promesa urgente, un gatillo de curiosidad o un alivio inmediato (Ej: 'ÉL TE ESCUCHÓ', 'DUERME EN PAZ', 'ALGO GRANDE VIENE'). NUNCA uses títulos descriptivos.]
+    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, seguida obligatoriamente de los Capítulos/Timestamps (ej: 00:00 Inicio, 03:00 Oración, 07:00 Bendición)]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
