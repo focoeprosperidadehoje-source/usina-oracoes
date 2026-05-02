@@ -49,32 +49,45 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. LÓGICA DE ESTOQUE DE 3 DIAS E MÉTODO SNIPER
+# 3. LÓGICA DE ESTOQUE E SCANNER DE BURACOS
 # ==============================================================================
-valores_coluna_b = aba.col_values(2)
+valores_coluna_b = aba.col_values(2) 
 proxima_linha_vazia = len(valores_coluna_b) + 1 
 
-valores_coluna_a = aba.col_values(1)
+valores_coluna_a = aba.col_values(1) 
 datas_validas =[d for d in valores_coluna_a[1:] if d.strip()] 
+horarios_validos =[h for h in valores_coluna_b[1:] if h.strip()]
 
 hoje = datetime.date.today()
 meta_estoque = hoje + datetime.timedelta(days=3)
 
 if datas_validas:
+    ultima_data_str = datas_validas[-1]
     try:
-        ultima_data = datetime.datetime.strptime(datas_validas[-1], '%Y-%m-%d').date()
+        ultima_data = datetime.datetime.strptime(ultima_data_str, '%Y-%m-%d').date()
     except:
         ultima_data = hoje - datetime.timedelta(days=1)
+        
+    horarios_da_ultima_data =[]
+    for d, h in zip(datas_validas, horarios_validos):
+        if d == ultima_data_str:
+            horarios_da_ultima_data.append(h)
+            
+    if len(horarios_da_ultima_data) >= len(GRADE_DIARIA):
+        data_alvo = ultima_data + datetime.timedelta(days=1)
+        grade_para_processar = GRADE_DIARIA
+    else:
+        data_alvo = ultima_data
+        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_da_ultima_data]
 else:
-    ultima_data = hoje - datetime.timedelta(days=1)
+    data_alvo = hoje
+    grade_para_processar = GRADE_DIARIA
 
-# TRAVA DE ESTOQUE
-if ultima_data >= meta_estoque:
-    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos até {ultima_data}. A meta era {meta_estoque}.")
+if data_alvo > meta_estoque:
+    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos até {data_alvo - datetime.timedelta(days=1)}. A meta era {meta_estoque}.")
     print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
     sys.exit(0)
 
-data_alvo = ultima_data + datetime.timedelta(days=1)
 dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
 
@@ -82,18 +95,17 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 4. PRODUÇÃO EM MASSA (CASCATA DE IA + COPYWRITING AVANÇADO)
+# 4. PRODUÇÃO EM MASSA (CASCATA DE IA 2026 + COPYWRITING VIRAL)
 # ==============================================================================
 esperas_exponenciais =[10, 20, 40, 80, 120]
 modelos_cascata =['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
 
-for video in GRADE_DIARIA:
+for video in grade_para_processar:
     horario = video["horario"]
     persona = video["personagem"]
     idioma = video["idioma"]
     foco_teologico = video["foco"]
     
-    # DIVISÃO DA SEXTA-FEIRA (Perdão de manhã, Paixão à noite)
     if dia_da_semana == 4: 
         if horario in["06:00", "14:00"]:
             foco_teologico += " ENFOQUE: Misericordia y Perdón (Tono suave y esperanzador)."
@@ -136,7 +148,6 @@ for video in GRADE_DIARIA:
 
     time.sleep(5)
 
-    # REGRA DE MEDITAÇÃO PARA 18H E 21H
     regra_meditacao = ""
     if horario in["18:00", "21:00"]:
         regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar. Además, añade un 4º Capítulo en los Timestamps llamado 'Meditación y Paz Profunda'."
@@ -157,12 +168,12 @@ for video in GRADE_DIARIA:
     5. RITMO DE AUDIO Y PAUSAS: Escribe en párrafos cortos (máximo 3 líneas). OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas dramáticas y reflexivas en la voz.
     6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
-    8. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
+    8. CIERRE Y VELOCITY (MUY IMPORTANTE): Termina la oración pidiendo explícitamente al oyente que escriba su nombre y su petición en los comentarios para ponerlos en el altar de intenciones. Hazlo sonar como una misión de fe.
     
     {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
-    TITULO:[Escribe aquí un título magnético y chamativo]
+    TITULO:[Escribe aquí un título magnético, con promesa urgente o gatillo de curiosidad/alivio inmediato]
     THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, seguida obligatoriamente de los Capítulos/Timestamps (ej: 00:00 Inicio, 03:00 Oración, 07:00 Bendición)]
@@ -204,7 +215,7 @@ for video in GRADE_DIARIA:
         ]
         
         intervalo = f"A{proxima_linha_vazia}:L{proxima_linha_vazia}"
-        aba.update(intervalo,[nova_linha])
+        aba.update(values=[nova_linha], range_name=intervalo)
         
         print(f"   ✅ SUCESSO! Linha {proxima_linha_vazia} preenchida perfeitamente.")
         
