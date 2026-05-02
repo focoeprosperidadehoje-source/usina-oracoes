@@ -49,44 +49,56 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. LÓGICA DE ESTOQUE E SCANNER DE BURACOS
+# 3. RADAR DE 16 LINHAS E SCANNER DE BURACOS
 # ==============================================================================
-valores_coluna_b = aba.col_values(2) 
-proxima_linha_vazia = len(valores_coluna_b) + 1 
+todas_linhas = aba.get_all_values()
+total_linhas = len(todas_linhas)
+proxima_linha_vazia = total_linhas + 1
 
-valores_coluna_a = aba.col_values(1) 
-datas_validas =[d for d in valores_coluna_a[1:] if d.strip()] 
-horarios_validos =[h for h in valores_coluna_b[1:] if h.strip()]
+# Pega apenas as últimas 16 linhas para não sobrecarregar a memória
+ultimas_linhas = todas_linhas[-16:] if total_linhas > 16 else todas_linhas[1:]
 
+dias_existentes = {}
 hoje = datetime.date.today()
-meta_estoque = hoje + datetime.timedelta(days=3)
+maior_data = hoje - datetime.timedelta(days=1)
 
-if datas_validas:
-    ultima_data_str = datas_validas[-1]
-    try:
-        ultima_data = datetime.datetime.strptime(ultima_data_str, '%Y-%m-%d').date()
-    except:
-        ultima_data = hoje - datetime.timedelta(days=1)
-        
-    horarios_da_ultima_data =[]
-    for d, h in zip(datas_validas, horarios_validos):
-        if d == ultima_data_str:
-            horarios_da_ultima_data.append(h)
-            
-    if len(horarios_da_ultima_data) >= len(GRADE_DIARIA):
-        data_alvo = ultima_data + datetime.timedelta(days=1)
+for linha in ultimas_linhas:
+    if len(linha) >= 2:
+        d_str = linha[0].strip()
+        h_str = linha[1].strip()
+        if d_str and h_str:
+            try:
+                d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
+                if d_obj not in dias_existentes:
+                    dias_existentes[d_obj] = []
+                dias_existentes[d_obj].append(h_str)
+                if d_obj > maior_data:
+                    maior_data = d_obj
+            except:
+                pass
+
+meta_estoque = hoje + datetime.timedelta(days=2) # Hoje + 2 dias de frente
+data_alvo = None
+grade_para_processar =[]
+
+# 1. Procurar buracos nos dias existentes
+for d_obj in sorted(dias_existentes.keys()):
+    horarios = dias_existentes[d_obj]
+    if 0 < len(horarios) < 4:
+        data_alvo = d_obj
+        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios]
+        print(f"⚠️ BURACO ENCONTRADO: Faltam horários no dia {data_alvo}.")
+        break
+
+# 2. Se não achou buraco, verifica se precisa criar o próximo dia
+if not data_alvo:
+    if maior_data < meta_estoque:
+        data_alvo = maior_data + datetime.timedelta(days=1)
         grade_para_processar = GRADE_DIARIA
     else:
-        data_alvo = ultima_data
-        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_da_ultima_data]
-else:
-    data_alvo = hoje
-    grade_para_processar = GRADE_DIARIA
-
-if data_alvo > meta_estoque:
-    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos até {data_alvo - datetime.timedelta(days=1)}. A meta era {meta_estoque}.")
-    print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
-    sys.exit(0)
+        print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {maior_data}.")
+        print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
+        sys.exit(0)
 
 dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
@@ -95,7 +107,7 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 4. PRODUÇÃO EM MASSA (CASCATA DE IA 2026 + COPYWRITING VIRAL)
+# 4. PRODUÇÃO EM MASSA (CASCATA DE IA + COPYWRITING AVANÇADO)
 # ==============================================================================
 esperas_exponenciais =[10, 20, 40, 80, 120]
 modelos_cascata =['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
@@ -168,12 +180,12 @@ for video in grade_para_processar:
     5. RITMO DE AUDIO Y PAUSAS: Escribe en párrafos cortos (máximo 3 líneas). OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas dramáticas y reflexivas en la voz.
     6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
-    8. CIERRE Y VELOCITY (MUY IMPORTANTE): Termina la oración pidiendo explícitamente al oyente que escriba su nombre y su petición en los comentarios para ponerlos en el altar de intenciones. Hazlo sonar como una misión de fe.
+    8. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
     
     {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas:
-    TITULO:[Escribe aquí un título magnético, con promesa urgente o gatillo de curiosidad/alivio inmediato]
+    TITULO:[Escribe aquí un título magnético y chamativo]
     THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, seguida obligatoriamente de los Capítulos/Timestamps (ej: 00:00 Inicio, 03:00 Oración, 07:00 Bendición)]
