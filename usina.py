@@ -49,43 +49,53 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. LÓGICA DE ESTOQUE E SCANNER DE BURACOS
+# 3. RADAR DE 16 LINHAS E SCANNER DE BURACOS
 # ==============================================================================
-valores_coluna_b = aba.col_values(2) 
-proxima_linha_vazia = len(valores_coluna_b) + 1 
+todas_linhas = aba.get_all_values()
+total_linhas = len(todas_linhas)
+proxima_linha_vazia = total_linhas + 1
 
-valores_coluna_a = aba.col_values(1) 
-datas_validas =[d.strip() for d in valores_coluna_a[1:] if d.strip()] 
-horarios_validos =[h.strip() for h in valores_coluna_b[1:] if h.strip()]
+ultimas_linhas = todas_linhas[-16:] if total_linhas > 16 else todas_linhas[1:]
 
 dias_existentes = {}
-for d, h in zip(datas_validas, horarios_validos):
-    if d not in dias_existentes:
-        dias_existentes[d] = []
-    dias_existentes[d].append(h)
-
 hoje = datetime.date.today()
-meta_estoque = hoje + datetime.timedelta(days=3)
+maior_data = hoje - datetime.timedelta(days=1)
 
+for linha in ultimas_linhas:
+    if len(linha) >= 2:
+        d_str = linha[0].strip()
+        h_str = linha[1].strip()
+        if d_str and h_str:
+            try:
+                d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
+                if d_obj not in dias_existentes:
+                    dias_existentes[d_obj] = []
+                dias_existentes[d_obj].append(h_str)
+                if d_obj > maior_data:
+                    maior_data = d_obj
+            except:
+                pass
+
+meta_estoque = hoje + datetime.timedelta(days=2) 
 data_alvo = None
 grade_para_processar =[]
 
-data_check = hoje
-while data_check <= meta_estoque:
-    data_str = data_check.strftime('%Y-%m-%d')
-    horarios_presentes = dias_existentes.get(data_str,[])
-    
-    if len(horarios_presentes) < len(GRADE_DIARIA):
-        data_alvo = data_check
-        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
-        break 
-        
-    data_check += datetime.timedelta(days=1)
+for d_obj in sorted(dias_existentes.keys()):
+    horarios = dias_existentes[d_obj]
+    if 0 < len(horarios) < 4:
+        data_alvo = d_obj
+        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios]
+        print(f"⚠️ BURACO ENCONTRADO: Faltam horários no dia {data_alvo}.")
+        break
 
 if not data_alvo:
-    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque - datetime.timedelta(days=1)}.")
-    print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
-    sys.exit(0)
+    if maior_data < meta_estoque:
+        data_alvo = maior_data + datetime.timedelta(days=1)
+        grade_para_processar = GRADE_DIARIA
+    else:
+        print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {maior_data}.")
+        print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
+        sys.exit(0)
 
 dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
@@ -126,14 +136,14 @@ for video in grade_para_processar:
     prompt_tema = f"""
     Actúa como un Teólogo católico. Crea un tema corto (máximo 8 palabras) para una oración. 
     El enfoque principal (pilar) es '{pilar_do_dia}', la oración está dirigida a '{persona}' y el momento del día es '{foco_teologico}'. 
-    Responde SOLO con el tema, sin comillas.
+    Responde SOLO con el tema, sin comillas ni asteriscos.
     """
     
     for tentativa in range(5):
         try:
             modelo_atual = modelos_cascata[tentativa]
             resp_tema = client.models.generate_content(model=modelo_atual, contents=prompt_tema)
-            tema_gerado = resp_tema.text.strip()
+            tema_gerado = resp_tema.text.replace('*', '').replace('"', '').strip()
             print(f"   ✨ Tema Criado ({modelo_atual}): {tema_gerado}")
             break 
         except Exception as e:
@@ -149,7 +159,7 @@ for video in grade_para_processar:
 
     regra_meditacao = ""
     if horario in["18:00", "21:00"]:
-        regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar. Además, añade un 4º Capítulo en los Timestamps llamado 'Meditación y Paz Profunda'."
+        regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar."
 
     texto_ia = None
     prompt_principal = f"""
@@ -161,22 +171,21 @@ for video in grade_para_processar:
     
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
     1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro.
-    2. GANCHO INICIAL (0-60s): NO te presentes. Empieza directamente con esta estructura: {instrucao_abertura}
-    3. PROFUNDIDAD: Concéntrate en UN SOLO TEMA central. PROHIBIDO hacer "listas de supermercado" pidiendo por muchas cosas diferentes. Profundiza en la emoción.
+    2. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase tocando directamente en el dolor o la esperanza del fiel con empatía profunda (Ej: 'Sé que hoy fue un día difícil y tu corazón está pesado...'). Luego, conecta con esta estructura: {instrucao_abertura}
+    3. PROFUNDIDAD Y EMOCIÓN: Concéntrate en UN SOLO TEMA central. Escribe párrafos normales, profundos y emocionantes. NO hagas listas de pedidos.
     4. ARCO EN 3 ACTOS: Divide la oración en Vulnerabilidad -> Súplica -> Entrega/Gratitud.
-    5. RITMO DE AUDIO Y PAUSAS: Escribe en párrafos cortos (máximo 3 líneas). OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas dramáticas y reflexivas en la voz.
-    6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
-    7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
-    8. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
-    9. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas alrededor de las etiquetas.
+    5. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
+    6. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
+    7. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
+    8. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas. NO uses asteriscos (*).
     
     {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas al inicio de cada sección:
-    TITULO:[Escribe aquí un título magnético y chamativo]
-    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS para usar en la miniatura del video]
+    TITULO:[Escribe aquí un título magnético y chamativo. SIN ASTERISCOS]
+    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS. DEBE ser una promesa urgente, un gatillo de curiosidad o un alivio inmediato CONTEXTUALIZADO con el tema de la oración. NUNCA uses títulos descriptivos. SIN ASTERISCOS]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
-    DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, seguida obligatoriamente de los Capítulos/Timestamps (ej: 00:00 Inicio, 03:00 Oración, 07:00 Bendición)]
+    DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, usando palabras clave de cola larga relacionadas a la oración, sanación y fe]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
     
@@ -203,11 +212,12 @@ for video in grade_para_processar:
         desc_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|TITULO:|THUMB:|GUION:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         tags_match = re.search(r'TAGS:\s*(.*?)(?=TITULO:|THUMB:|GUION:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         
-        titulo_final = titulo_match.group(1).strip() if titulo_match else "Título Padrão"
-        thumb_final = thumb_match.group(1).strip() if thumb_match else "ORACIÓN PODEROSA"
+        # Limpeza de asteriscos e aspas
+        titulo_final = titulo_match.group(1).replace('*', '').replace('"', '').strip() if titulo_match else "Título Padrão"
+        thumb_final = thumb_match.group(1).replace('*', '').replace('"', '').strip() if thumb_match else "ORACIÓN PODEROSA"
         roteiro_final = guion_match.group(1).strip() if guion_match else texto_ia 
         desc_final = desc_match.group(1).strip() if desc_match else "Descripción Padrão"
-        tags_final = tags_match.group(1).strip() if tags_match else "Tags"
+        tags_final = tags_match.group(1).replace('*', '').strip() if tags_match else "Tags"
         
         nova_linha =[
             str(data_alvo), horario, "Pronto p/ Áudio", persona, idioma, 
