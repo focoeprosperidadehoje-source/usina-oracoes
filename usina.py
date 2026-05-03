@@ -39,7 +39,7 @@ PILARES = {
 
 GRADE_DIARIA =[
     {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección para el día que nace."},
-    {"horario": "14:00", "personagem": "Maria", "idioma": "ES", "foco": "Tarde: Intercesión por la familia, salud y las aflicciones del medio día."},
+    {"horario": "12:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Intercesión por la familia, salud y las aflicciones de la jornada."},
     {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer: Acogimiento maternal, Ave María y gratitud por el día."},
     {"horario": "21:00", "personagem": "Jesus", "idioma": "ES", "foco": "Noche: Entrega del sueño, perdón y descanso profundo en Dios."}
 ]
@@ -76,7 +76,7 @@ for linha in ultimas_linhas:
             except:
                 pass
 
-meta_estoque = hoje + datetime.timedelta(days=2) 
+meta_estoque = hoje + datetime.timedelta(days=4) # Hoje + 4 dias = 5 dias de frente
 data_alvo = None
 grade_para_processar =[]
 
@@ -116,7 +116,7 @@ for video in grade_para_processar:
     foco_teologico = video["foco"]
     
     if dia_da_semana == 4: 
-        if horario in["06:00", "14:00"]:
+        if horario in["06:00", "12:00"]:
             foco_teologico += " ENFOQUE: Misericordia y Perdón (Tono suave y esperanzador)."
         else:
             foco_teologico += " ENFOQUE: La Pasión de Cristo y el Sacrificio (Tono profundo y reflexivo)."
@@ -157,9 +157,18 @@ for video in grade_para_processar:
 
     time.sleep(5)
 
-    regra_meditacao = ""
-    if horario in["18:00", "21:00"]:
-        regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar."
+    # REGRAS ESPECÍFICAS POR HORÁRIO E PERSONAGEM
+    regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario in["18:00", "21:00"] else ""
+    
+    regra_maria = "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita' a lo largo de la oración." if persona == 'MARIA' else ""
+    
+    cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario in["18:00", "21:00"] else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
+    
+    titulo_sufixo = ""
+    if horario == "06:00": titulo_sufixo = "Oración de la Mañana"
+    elif horario == "12:00": titulo_sufixo = "Oración del Mediodía"
+    elif horario == "18:00": titulo_sufixo = "Oración Mariana"
+    elif horario == "21:00": titulo_sufixo = "Oración de la Noche"
 
     texto_ia = None
     prompt_principal = f"""
@@ -171,19 +180,21 @@ for video in grade_para_processar:
     
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
     1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro.
-    2. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase tocando directamente en el dolor o la esperanza del fiel con empatía profunda (Ej: 'Sé que hoy fue un día difícil y tu corazón está pesado...'). Luego, conecta con esta estructura: {instrucao_abertura}
-    3. PROFUNDIDAD Y EMOCIÓN: Concéntrate en UN SOLO TEMA central. Escribe párrafos normales, profundos y emocionantes. NO hagas listas de pedidos.
+    2. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase tocando directamente en el dolor o la esperanza del fiel con empatía profunda (Ej: 'Sé que hoy fue un día difícil...'). Luego, conecta con esta estructura: {instrucao_abertura}
+    3. PROFUNDIDAD Y EMOCIÓN: Concéntrate en UN SOLO TEMA central. Escribe párrafos elaborados y profundos (no te limites a una sola frase por párrafo, pero tampoco los hagas gigantescos).
     4. ARCO EN 3 ACTOS: Divide la oración en Vulnerabilidad -> Súplica -> Entrega/Gratitud.
-    5. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
-    6. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
-    7. CIERRE Y LLAMADO ESPIRITUAL SUTIL: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
-    8. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas. NO uses asteriscos (*).
+    5. PAUSAS DRAMÁTICAS: OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas reflexivas en la voz.
+    6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
+    7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
+    8. CIERRE Y VELOCITY: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. {cta_comentarios} Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
+    9. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas. NO uses asteriscos (*).
     
+    {regra_maria}
     {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas al inicio de cada sección:
-    TITULO:[Escribe aquí un título magnético y chamativo. SIN ASTERISCOS]
-    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS. DEBE ser una promesa urgente, un gatillo de curiosidad o un alivio inmediato CONTEXTUALIZADO con el tema de la oración. NUNCA uses títulos descriptivos. SIN ASTERISCOS]
+    TITULO:[Escribe aquí un título magnético. FORMATO OBLIGATORIO: "[Promesa Urgente o Gatillo de Alivio] - {titulo_sufixo}". NO PONGAS LA FECHA. SIN ASTERISCOS]
+    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS. DEBE ser una promesa urgente o alivio inmediato CONTEXTUALIZADO con el tema. NUNCA uses títulos descriptivos. SIN ASTERISCOS]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, usando palabras clave de cola larga relacionadas a la oración, sanación y fe]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
@@ -212,7 +223,6 @@ for video in grade_para_processar:
         desc_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|TITULO:|THUMB:|GUION:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         tags_match = re.search(r'TAGS:\s*(.*?)(?=TITULO:|THUMB:|GUION:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         
-        # Limpeza de asteriscos e aspas
         titulo_final = titulo_match.group(1).replace('*', '').replace('"', '').strip() if titulo_match else "Título Padrão"
         thumb_final = thumb_match.group(1).replace('*', '').replace('"', '').strip() if thumb_match else "ORACIÓN PODEROSA"
         roteiro_final = guion_match.group(1).strip() if guion_match else texto_ia 
