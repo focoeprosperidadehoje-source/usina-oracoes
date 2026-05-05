@@ -23,7 +23,38 @@ gc = gspread.authorize(credenciais)
 client = Client(api_key=CHAVE_API, http_options={'api_version': 'v1'})
 
 # ==============================================================================
-# 2. CONFIGURAÇÕES DA FÁBRICA E BRIEFING TEOLÓGICO
+# 2. O RADAR DE MODELOS (INTELIGÊNCIA EVOLUTIVA)
+# ==============================================================================
+def obter_cascata_de_modelos():
+    print("📡 Escaneando os servidores do Google em busca das IAs mais modernas...")
+    try:
+        modelos_disponiveis = client.models.list()
+        flash_models = []
+        pro_models =[]
+        
+        for m in modelos_disponiveis:
+            nome = m.name
+            # Filtra apenas modelos de geração de texto que não sejam experimentais
+            if 'generateContent' in m.supported_generation_methods and 'exp' not in nome:
+                if 'flash' in nome and '8b' not in nome:
+                    flash_models.append(nome)
+                elif 'pro' in nome and 'vision' not in nome:
+                    pro_models.append(nome)
+                    
+        # Pega o mais recente (geralmente o último da lista alfabética/versão)
+        melhor_flash = sorted(flash_models, reverse=True)[0] if flash_models else 'gemini-2.5-flash'
+        melhor_pro = sorted(pro_models, reverse=True)[0] if pro_models else 'gemini-2.5-pro'
+        
+        print(f"   ✅ Modelos atualizados encontrados: {melhor_flash} e {melhor_pro}")
+        return [melhor_flash, melhor_flash, melhor_flash, melhor_pro, melhor_pro]
+    except Exception as e:
+        print(f"   ⚠️ Falha ao escanear modelos. Usando padrão de 2026. Erro: {e}")
+        return['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
+
+modelos_cascata = obter_cascata_de_modelos()
+
+# ==============================================================================
+# 3. CONFIGURAÇÕES DA FÁBRICA E BRIEFING TEOLÓGICO
 # ==============================================================================
 ID_PLANILHA = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"
 
@@ -49,33 +80,48 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. SCANNER DE BURACOS (LEITURA BLINDADA DE HOJE EM DIANTE)
+# 4. AUTO-LIMPEZA (GARI DIGITAL)
 # ==============================================================================
-valores_coluna_a = aba.col_values(1)
-valores_coluna_b = aba.col_values(2)
-proxima_linha_vazia = len(valores_coluna_b) + 1 
+todas_linhas = aba.get_all_values()
+total_linhas = len(todas_linhas)
+
+if total_linhas > 500:
+    print(f"🧹 Planilha com {total_linhas} linhas. Iniciando Auto-Limpeza do passado...")
+    # Apaga as linhas da 2 até a 100 (mantém o cabeçalho)
+    aba.delete_rows(2, 100)
+    print("   ✅ 99 linhas antigas apagadas. Planilha otimizada!")
+    # Atualiza os dados após a limpeza
+    todas_linhas = aba.get_all_values()
+    total_linhas = len(todas_linhas)
+
+proxima_linha_vazia = total_linhas + 1
+
+# ==============================================================================
+# 5. JANELA DESLIZANTE E SCANNER DE BURACOS
+# ==============================================================================
+valores_coluna_a = [linha[0].strip() for linha in todas_linhas[1:] if len(linha) > 0]
+valores_coluna_b = [linha[1].strip() for linha in todas_linhas[1:] if len(linha) > 1]
 
 dias_existentes = {}
 hoje = datetime.date.today()
+limite_passado = hoje - datetime.timedelta(days=2) # Olha no máximo 2 dias para trás
 
-# Mapeia apenas as datas de HOJE para o futuro
-for d_str, h_str in zip(valores_coluna_a[1:], valores_coluna_b[1:]):
-    d_str, h_str = d_str.strip(), h_str.strip()
+for d_str, h_str in zip(valores_coluna_a, valores_coluna_b):
     if d_str and h_str:
         try:
             d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
-            if d_obj >= hoje:
+            if d_obj >= limite_passado:
                 if d_obj not in dias_existentes:
-                    dias_existentes[d_obj] =[]
+                    dias_existentes[d_obj] = []
                 dias_existentes[d_obj].append(h_str)
         except:
             pass
 
-meta_estoque = hoje + datetime.timedelta(days=5) # Meta: 5 dias de frente
+meta_estoque = hoje + datetime.timedelta(days=5) # 5 dias de frente
 data_alvo = None
 grade_para_processar =[]
 
-data_check = hoje
+data_check = limite_passado
 while data_check <= meta_estoque:
     horarios_presentes = dias_existentes.get(data_check,[])
     if len(horarios_presentes) < 4:
@@ -86,7 +132,7 @@ while data_check <= meta_estoque:
     data_check += datetime.timedelta(days=1)
 
 if not data_alvo:
-    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque}.")
+    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque - datetime.timedelta(days=1)}.")
     print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
     sys.exit(0)
 
@@ -97,10 +143,9 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 4. PRODUÇÃO EM MASSA (CASCATA DE IA + COPYWRITING AVANÇADO)
+# 6. PRODUÇÃO EM MASSA (COPYWRITING AVANÇADO)
 # ==============================================================================
 esperas_exponenciais =[10, 20, 40, 80, 120]
-modelos_cascata =['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
 
 for video in grade_para_processar:
     horario = video["horario"]
@@ -125,7 +170,6 @@ for video in grade_para_processar:
     elif "Manto" in pilar_do_dia: instrucao_abertura = "Comienza pidiendo ser escondido y blindado bajo el manto sagrado contra los peligros del mundo."
     elif "Milagros" in pilar_do_dia: instrucao_abertura = "Comienza con un fuerte y alegre agradecimiento por los milagros y la vida."
 
-    # INJEÇÃO DE IDENTIDADE
     persona_prompt = "Jesucristo" if persona == 'JESUS' else "la Virgen de Guadalupe (cariñosamente llamada La Morenita)"
 
     tema_gerado = None
