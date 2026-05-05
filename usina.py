@@ -28,19 +28,19 @@ client = Client(api_key=CHAVE_API, http_options={'api_version': 'v1'})
 ID_PLANILHA = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"
 
 PILARES = {
-    0: "Protección y Liberación (Lunes)",
-    1: "Salud y Sanación (Martes)",
-    2: "Familia y Relaciones (Miércoles)",
-    3: "Prosperidad y Trabajo (Jueves)",
-    4: "Perdón y Pasión de Cristo (Viernes)",
-    5: "Consagración a María (Sábado)",
-    6: "Gratitud y Resurrección (Domingo)"
+    0: "Guerra Espiritual y Protección (Lunes)",
+    1: "Liberación de Vicios y Ataduras (Martes)",
+    2: "Restauración Familiar y Matrimonial (Miércoles)",
+    3: "Providencia y Puertas Abiertas (Jueves)",
+    4: "Misericordia y Sanación Física (Viernes)",
+    5: "El Manto de Guadalupe (Sábado)",
+    6: "Milagros y Gratitud (Domingo)"
 }
 
 GRADE_DIARIA =[
     {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección para el día que nace."},
     {"horario": "12:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Intercesión por la familia, salud y las aflicciones de la jornada."},
-    {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer: Acogimiento maternal, Ave María y gratitud por el día."},
+    {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer: Acogimiento maternal, consuelo y gratitud por el día."},
     {"horario": "21:00", "personagem": "Jesus", "idioma": "ES", "foco": "Noche: Entrega del sueño, perdón y descanso profundo en Dios."}
 ]
 
@@ -124,13 +124,13 @@ for video in grade_para_processar:
     print(f"🎬 PRODUZINDO SLOT: {horario} | Personagem: {persona}")
     
     instrucao_abertura = ""
-    if "Protección" in pilar_do_dia: instrucao_abertura = "Comienza reconociendo una amenaza o dificultad invisible, y luego invoca la protección divina."
-    elif "Salud" in pilar_do_dia: instrucao_abertura = "Comienza con una profunda gratitud por el cuerpo y el aliento de vida, antes de pedir sanación."
-    elif "Familia" in pilar_do_dia: instrucao_abertura = "Comienza evocando una escena cotidiana y cálida del hogar y la familia."
-    elif "Prosperidad" in pilar_do_dia: instrucao_abertura = "Comienza reconociendo el esfuerzo, el sudor del trabajo diario y la necesidad de la providencia."
-    elif "Perdón" in pilar_do_dia: instrucao_abertura = "Comienza contemplando el amor incondicional y la necesidad de purificar el alma."
-    elif "Consagración" in pilar_do_dia: instrucao_abertura = "Comienza con una imagen poética y maternal de la Virgen María cubriéndonos con su manto."
-    elif "Gratitud" in pilar_do_dia: instrucao_abertura = "Comienza con un fuerte y alegre agradecimiento por el milagro de la vida."
+    if "Guerra" in pilar_do_dia: instrucao_abertura = "Comienza reconociendo una amenaza, envidia o dificultad invisible, y luego invoca la protección divina."
+    elif "Vicios" in pilar_do_dia: instrucao_abertura = "Comienza con el dolor de ver a un ser querido perdido en ataduras o vicios, pidiendo liberación."
+    elif "Familiar" in pilar_do_dia: instrucao_abertura = "Comienza evocando las fricciones y el deseo de paz y unión dentro del hogar."
+    elif "Providencia" in pilar_do_dia: instrucao_abertura = "Comienza reconociendo el esfuerzo, las deudas o la necesidad urgente de puertas abiertas."
+    elif "Misericordia" in pilar_do_dia: instrucao_abertura = "Comienza pidiendo sanación para el cuerpo enfermo y perdón para el alma."
+    elif "Manto" in pilar_do_dia: instrucao_abertura = "Comienza pidiendo ser escondido y blindado bajo el manto sagrado contra los peligros del mundo."
+    elif "Milagros" in pilar_do_dia: instrucao_abertura = "Comienza con un fuerte y alegre agradecimiento por los milagros y la vida."
 
     tema_gerado = None
     prompt_tema = f"""
@@ -157,11 +157,8 @@ for video in grade_para_processar:
 
     time.sleep(5)
 
-    # REGRAS ESPECÍFICAS POR HORÁRIO E PERSONAGEM
     regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario in["18:00", "21:00"] else ""
-    
     regra_maria = "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita' a lo largo de la oración." if persona == 'MARIA' else ""
-    
     cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario in["18:00", "21:00"] else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     
     titulo_sufixo = ""
@@ -181,9 +178,9 @@ for video in grade_para_processar:
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
     1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro.
     2. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase tocando directamente en el dolor o la esperanza del fiel con empatía profunda (Ej: 'Sé que hoy fue un día difícil...'). Luego, conecta con esta estructura: {instrucao_abertura}
-    3. PROFUNDIDAD Y EMOCIÓN: Concéntrate en UN SOLO TEMA central. Escribe párrafos elaborados y profundos (no te limites a una sola frase por párrafo, pero tampoco los hagas gigantescos).
-    4. ARCO EN 3 ACTOS: Divide la oración en Vulnerabilidad -> Súplica -> Entrega/Gratitud.
-    5. PAUSAS DRAMÁTICAS: OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas reflexivas en la voz.
+    3. PROFUNDIDAD Y EMOCIÓN: Concéntrate en UN SOLO TEMA central. Escribe párrafos elaborados y profundos. NO hagas listas de pedidos.
+    4. ARCO EN 3 ACTOS: Divide la oración en Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye un bloque obligatorio pidiendo por la salud de los enfermos.
+    5. PAUSAS NATURALES: Usa puntuación natural (comas, puntos).
     6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
     8. CIERRE Y VELOCITY: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. {cta_comentarios} Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
