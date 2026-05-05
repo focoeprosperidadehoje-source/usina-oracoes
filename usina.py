@@ -49,53 +49,46 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. RADAR DE 16 LINHAS E SCANNER DE BURACOS
+# 3. SCANNER DE BURACOS (LEITURA BLINDADA DE HOJE EM DIANTE)
 # ==============================================================================
-todas_linhas = aba.get_all_values()
-total_linhas = len(todas_linhas)
-proxima_linha_vazia = total_linhas + 1
-
-ultimas_linhas = todas_linhas[-16:] if total_linhas > 16 else todas_linhas[1:]
+valores_coluna_a = aba.col_values(1)
+valores_coluna_b = aba.col_values(2)
+proxima_linha_vazia = len(valores_coluna_b) + 1 
 
 dias_existentes = {}
 hoje = datetime.date.today()
-maior_data = hoje - datetime.timedelta(days=1)
 
-for linha in ultimas_linhas:
-    if len(linha) >= 2:
-        d_str = linha[0].strip()
-        h_str = linha[1].strip()
-        if d_str and h_str:
-            try:
-                d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
+# Mapeia apenas as datas de HOJE para o futuro
+for d_str, h_str in zip(valores_coluna_a[1:], valores_coluna_b[1:]):
+    d_str, h_str = d_str.strip(), h_str.strip()
+    if d_str and h_str:
+        try:
+            d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
+            if d_obj >= hoje:
                 if d_obj not in dias_existentes:
-                    dias_existentes[d_obj] = []
+                    dias_existentes[d_obj] =[]
                 dias_existentes[d_obj].append(h_str)
-                if d_obj > maior_data:
-                    maior_data = d_obj
-            except:
-                pass
+        except:
+            pass
 
-meta_estoque = hoje + datetime.timedelta(days=4) # Hoje + 4 dias = 5 dias de frente
+meta_estoque = hoje + datetime.timedelta(days=5) # Meta: 5 dias de frente
 data_alvo = None
 grade_para_processar =[]
 
-for d_obj in sorted(dias_existentes.keys()):
-    horarios = dias_existentes[d_obj]
-    if 0 < len(horarios) < 4:
-        data_alvo = d_obj
-        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios]
+data_check = hoje
+while data_check <= meta_estoque:
+    horarios_presentes = dias_existentes.get(data_check,[])
+    if len(horarios_presentes) < 4:
+        data_alvo = data_check
+        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
         print(f"⚠️ BURACO ENCONTRADO: Faltam horários no dia {data_alvo}.")
         break
+    data_check += datetime.timedelta(days=1)
 
 if not data_alvo:
-    if maior_data < meta_estoque:
-        data_alvo = maior_data + datetime.timedelta(days=1)
-        grade_para_processar = GRADE_DIARIA
-    else:
-        print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {maior_data}.")
-        print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
-        sys.exit(0)
+    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque}.")
+    print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
+    sys.exit(0)
 
 dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
@@ -132,10 +125,13 @@ for video in grade_para_processar:
     elif "Manto" in pilar_do_dia: instrucao_abertura = "Comienza pidiendo ser escondido y blindado bajo el manto sagrado contra los peligros del mundo."
     elif "Milagros" in pilar_do_dia: instrucao_abertura = "Comienza con un fuerte y alegre agradecimiento por los milagros y la vida."
 
+    # INJEÇÃO DE IDENTIDADE
+    persona_prompt = "Jesucristo" if persona == 'JESUS' else "la Virgen de Guadalupe (cariñosamente llamada La Morenita)"
+
     tema_gerado = None
     prompt_tema = f"""
     Actúa como un Teólogo católico. Crea un tema corto (máximo 8 palabras) para una oración. 
-    El enfoque principal (pilar) es '{pilar_do_dia}', la oración está dirigida a '{persona}' y el momento del día es '{foco_teologico}'. 
+    El enfoque principal (pilar) es '{pilar_do_dia}', la oración está dirigida a '{persona_prompt}' y el momento del día es '{foco_teologico}'. 
     Responde SOLO con el tema, sin comillas ni asteriscos.
     """
     
@@ -158,7 +154,6 @@ for video in grade_para_processar:
     time.sleep(5)
 
     regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario in["18:00", "21:00"] else ""
-    regra_maria = "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita' a lo largo de la oración." if persona == 'MARIA' else ""
     cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario in["18:00", "21:00"] else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     
     titulo_sufixo = ""
@@ -170,23 +165,22 @@ for video in grade_para_processar:
     texto_ia = None
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe, con profundo conocimiento teológico pero lenguaje cercano, cálido y devocional.
-    Escribe una oración extensa y profunda de aproximadamente 1500 a 1800 palabras sobre el tema "{tema_gerado}" para {persona}. 
+    Escribe una oración extensa y profunda de aproximadamente 1500 a 1800 palabras sobre el tema "{tema_gerado}" dirigida a {persona_prompt}. 
     
     CONTEXTO OBLIGATORIO DEL HORARIO Y PILAR:
     Esta oración será publicada a las {horario}. El enfoque teológico DEBE ser: "{foco_teologico}". 
     
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
     1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro.
-    2. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase tocando directamente en el dolor o la esperanza del fiel con empatía profunda (Ej: 'Sé que hoy fue un día difícil...'). Luego, conecta con esta estructura: {instrucao_abertura}
+    2. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase tocando directamente en el dolor o la esperanza del fiel con empatía profunda. Luego, conecta con esta estructura: {instrucao_abertura}
     3. PROFUNDIDAD Y EMOCIÓN: Concéntrate en UN SOLO TEMA central. Escribe párrafos elaborados y profundos. NO hagas listas de pedidos.
     4. ARCO EN 3 ACTOS: Divide la oración en Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye un bloque obligatorio pidiendo por la salud de los enfermos.
-    5. PAUSAS NATURALES: Usa puntuación natural (comas, puntos).
+    5. PAUSAS NATURALES: OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas reflexivas en la voz.
     6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
     7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
     8. CIERRE Y VELOCITY: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. {cta_comentarios} Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
     9. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas. NO uses asteriscos (*).
     
-    {regra_maria}
     {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas al inicio de cada sección:
