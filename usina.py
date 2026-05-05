@@ -23,38 +23,7 @@ gc = gspread.authorize(credenciais)
 client = Client(api_key=CHAVE_API, http_options={'api_version': 'v1'})
 
 # ==============================================================================
-# 2. O RADAR DE MODELOS (INTELIGÊNCIA EVOLUTIVA)
-# ==============================================================================
-def obter_cascata_de_modelos():
-    print("📡 Escaneando os servidores do Google em busca das IAs mais modernas...")
-    try:
-        modelos_disponiveis = client.models.list()
-        flash_models = []
-        pro_models =[]
-        
-        for m in modelos_disponiveis:
-            nome = m.name
-            # Filtra apenas modelos de geração de texto que não sejam experimentais
-            if 'generateContent' in m.supported_generation_methods and 'exp' not in nome:
-                if 'flash' in nome and '8b' not in nome:
-                    flash_models.append(nome)
-                elif 'pro' in nome and 'vision' not in nome:
-                    pro_models.append(nome)
-                    
-        # Pega o mais recente (geralmente o último da lista alfabética/versão)
-        melhor_flash = sorted(flash_models, reverse=True)[0] if flash_models else 'gemini-2.5-flash'
-        melhor_pro = sorted(pro_models, reverse=True)[0] if pro_models else 'gemini-2.5-pro'
-        
-        print(f"   ✅ Modelos atualizados encontrados: {melhor_flash} e {melhor_pro}")
-        return [melhor_flash, melhor_flash, melhor_flash, melhor_pro, melhor_pro]
-    except Exception as e:
-        print(f"   ⚠️ Falha ao escanear modelos. Usando padrão de 2026. Erro: {e}")
-        return['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
-
-modelos_cascata = obter_cascata_de_modelos()
-
-# ==============================================================================
-# 3. CONFIGURAÇÕES DA FÁBRICA E BRIEFING TEOLÓGICO
+# 2. CONFIGURAÇÕES DA FÁBRICA E BRIEFING TEOLÓGICO
 # ==============================================================================
 ID_PLANILHA = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"
 
@@ -80,61 +49,53 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 4. AUTO-LIMPEZA (GARI DIGITAL)
+# 3. RADAR DE 16 LINHAS E SCANNER DE BURACOS
 # ==============================================================================
 todas_linhas = aba.get_all_values()
 total_linhas = len(todas_linhas)
-
-if total_linhas > 500:
-    print(f"🧹 Planilha com {total_linhas} linhas. Iniciando Auto-Limpeza do passado...")
-    # Apaga as linhas da 2 até a 100 (mantém o cabeçalho)
-    aba.delete_rows(2, 100)
-    print("   ✅ 99 linhas antigas apagadas. Planilha otimizada!")
-    # Atualiza os dados após a limpeza
-    todas_linhas = aba.get_all_values()
-    total_linhas = len(todas_linhas)
-
 proxima_linha_vazia = total_linhas + 1
 
-# ==============================================================================
-# 5. JANELA DESLIZANTE E SCANNER DE BURACOS
-# ==============================================================================
-valores_coluna_a = [linha[0].strip() for linha in todas_linhas[1:] if len(linha) > 0]
-valores_coluna_b = [linha[1].strip() for linha in todas_linhas[1:] if len(linha) > 1]
+ultimas_linhas = todas_linhas[-16:] if total_linhas > 16 else todas_linhas[1:]
 
 dias_existentes = {}
 hoje = datetime.date.today()
-limite_passado = hoje - datetime.timedelta(days=2) # Olha no máximo 2 dias para trás
+maior_data = hoje - datetime.timedelta(days=1)
 
-for d_str, h_str in zip(valores_coluna_a, valores_coluna_b):
-    if d_str and h_str:
-        try:
-            d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
-            if d_obj >= limite_passado:
+for linha in ultimas_linhas:
+    if len(linha) >= 2:
+        d_str = linha[0].strip()
+        h_str = linha[1].strip()
+        if d_str and h_str:
+            try:
+                d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
                 if d_obj not in dias_existentes:
                     dias_existentes[d_obj] = []
                 dias_existentes[d_obj].append(h_str)
-        except:
-            pass
+                if d_obj > maior_data:
+                    maior_data = d_obj
+            except:
+                pass
 
-meta_estoque = hoje + datetime.timedelta(days=5) # 5 dias de frente
+meta_estoque = hoje + datetime.timedelta(days=4) 
 data_alvo = None
 grade_para_processar =[]
 
-data_check = limite_passado
-while data_check <= meta_estoque:
-    horarios_presentes = dias_existentes.get(data_check,[])
-    if len(horarios_presentes) < 4:
-        data_alvo = data_check
-        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
+for d_obj in sorted(dias_existentes.keys()):
+    horarios = dias_existentes[d_obj]
+    if 0 < len(horarios) < 4:
+        data_alvo = d_obj
+        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios]
         print(f"⚠️ BURACO ENCONTRADO: Faltam horários no dia {data_alvo}.")
         break
-    data_check += datetime.timedelta(days=1)
 
 if not data_alvo:
-    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque - datetime.timedelta(days=1)}.")
-    print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
-    sys.exit(0)
+    if maior_data < meta_estoque:
+        data_alvo = maior_data + datetime.timedelta(days=1)
+        grade_para_processar = GRADE_DIARIA
+    else:
+        print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {maior_data}.")
+        print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
+        sys.exit(0)
 
 dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
@@ -143,9 +104,10 @@ print(f"\n📅 DATA ALVO DEFINIDA: {data_alvo} | Pilar: {pilar_do_dia}")
 print(f"🎯 O robô vai empezar a escribir exactamente en la Línea {proxima_linha_vazia}...\n")
 
 # ==============================================================================
-# 6. PRODUÇÃO EM MASSA (COPYWRITING AVANÇADO)
+# 4. PRODUÇÃO EM MASSA (CASCATA DE IA + COPYWRITING AVANÇADO)
 # ==============================================================================
 esperas_exponenciais =[10, 20, 40, 80, 120]
+modelos_cascata =['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
 
 for video in grade_para_processar:
     horario = video["horario"]
@@ -183,7 +145,7 @@ for video in grade_para_processar:
         try:
             modelo_atual = modelos_cascata[tentativa]
             resp_tema = client.models.generate_content(model=modelo_atual, contents=prompt_tema)
-            tema_gerado = resp_tema.text.replace('*', '').replace('"', '').strip()
+            tema_gerado = resp_tema.text.replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip()
             print(f"   ✨ Tema Criado ({modelo_atual}): {tema_gerado}")
             break 
         except Exception as e:
@@ -200,6 +162,9 @@ for video in grade_para_processar:
     regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario in["18:00", "21:00"] else ""
     cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario in["18:00", "21:00"] else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     
+    # REGRA DE BLINDAGEM DE PERSONAGEM
+    regra_persona = "OBLIGATORIO: Como te diriges a Jesucristo, ESTÁ ESTRICTAMENTE PROHIBIDO mencionar a María, la Virgen o Guadalupe." if persona == 'JESUS' else "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita'."
+
     titulo_sufixo = ""
     if horario == "06:00": titulo_sufixo = "Oración de la Mañana"
     elif horario == "12:00": titulo_sufixo = "Oración del Mediodía"
@@ -225,11 +190,12 @@ for video in grade_para_processar:
     8. CIERRE Y VELOCITY: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. {cta_comentarios} Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
     9. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas. NO uses asteriscos (*).
     
+    {regra_persona}
     {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas al inicio de cada sección:
-    TITULO:[Escribe aquí un título magnético. FORMATO OBLIGATORIO: "[Promesa Urgente o Gatillo de Alivio] - {titulo_sufixo}". NO PONGAS LA FECHA. SIN ASTERISCOS]
-    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS. DEBE ser una promesa urgente o alivio inmediato CONTEXTUALIZADO con el tema. NUNCA uses títulos descriptivos. SIN ASTERISCOS]
+    TITULO:[Escribe aquí un título magnético. FORMATO OBLIGATORIO: "[Promesa Urgente o Gatillo de Alivio] - {titulo_sufixo}". NO PONGAS LA FECHA. SIN ASTERISCOS NI CORCHETES]
+    THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS. DEBE ser una promesa urgente o alivio inmediato CONTEXTUALIZADO con el tema. NUNCA uses títulos descriptivos. SIN ASTERISCOS NI CORCHETES]
     GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
     DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, usando palabras clave de cola larga relacionadas a la oración, sanación y fe]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
@@ -258,11 +224,12 @@ for video in grade_para_processar:
         desc_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|TITULO:|THUMB:|GUION:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         tags_match = re.search(r'TAGS:\s*(.*?)(?=TITULO:|THUMB:|GUION:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         
-        titulo_final = titulo_match.group(1).replace('*', '').replace('"', '').strip() if titulo_match else "Título Padrão"
-        thumb_final = thumb_match.group(1).replace('*', '').replace('"', '').strip() if thumb_match else "ORACIÓN PODEROSA"
+        # Limpeza pesada de colchetes, aspas e asteriscos
+        titulo_final = titulo_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if titulo_match else "Título Padrão"
+        thumb_final = thumb_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if thumb_match else "ORACIÓN PODEROSA"
         roteiro_final = guion_match.group(1).strip() if guion_match else texto_ia 
         desc_final = desc_match.group(1).strip() if desc_match else "Descripción Padrão"
-        tags_final = tags_match.group(1).replace('*', '').strip() if tags_match else "Tags"
+        tags_final = tags_match.group(1).replace('*', '').replace('[', '').replace(']', '').strip() if tags_match else "Tags"
         
         nova_linha =[
             str(data_alvo), horario, "Pronto p/ Áudio", persona, idioma, 
