@@ -49,7 +49,7 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. RADAR BLINDADO (LÊ APENAS COLUNAS A e B, IGNORA O PASSADO)
+# 3. SCANNER DE BURACOS (LEITURA COMPLETA DE COLUNAS - SEM PONTO CEGO)
 # ==============================================================================
 valores_coluna_a = aba.col_values(1)
 valores_coluna_b = aba.col_values(2)
@@ -58,36 +58,35 @@ proxima_linha_vazia = len(valores_coluna_b) + 1
 dias_existentes = {}
 hoje = datetime.date.today()
 
-# Mapeia apenas as datas de HOJE para o futuro
+# Mapeia apenas as datas de HOJE para o futuro (Ignora o passado para não duplicar)
 for d_str, h_str in zip(valores_coluna_a[1:], valores_coluna_b[1:]):
     d_str, h_str = d_str.strip(), h_str.strip()
     if d_str and h_str:
         try:
             d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
-            if d_obj >= hoje: # REGRA DE FERRO: Ignora o passado
+            if d_obj >= hoje:
                 if d_obj not in dias_existentes:
                     dias_existentes[d_obj] = []
                 dias_existentes[d_obj].append(h_str)
         except:
             pass
 
-meta_estoque = hoje + datetime.timedelta(days=4) # Hoje + 4 dias = 5 dias de frente
+meta_estoque = hoje + datetime.timedelta(days=4) # Meta: 5 dias de frente
 data_alvo = None
 grade_para_processar =[]
 
-# Checa dia por dia, de hoje até a meta
 data_check = hoje
 while data_check <= meta_estoque:
-    horarios_presentes = dias_existentes.get(data_check,[])
+    horarios_presentes = dias_existentes.get(data_check, [])
     if len(horarios_presentes) < 4:
         data_alvo = data_check
-        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
-        print(f"⚠️ BURACO ENCONTRADO: Faltam horários no dia {data_alvo}.")
+        grade_para_processar = [v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
+        print(f"⚠️ BURACO ENCONTRADO: Faltam horários no día {data_alvo}.")
         break
     data_check += datetime.timedelta(days=1)
 
 if not data_alvo:
-    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque - datetime.timedelta(days=1)}.")
+    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque}.")
     print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
     sys.exit(0)
 
@@ -105,7 +104,7 @@ modelos_cascata =['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite
 
 for video in grade_para_processar:
     horario = video["horario"]
-    persona = video["personagem"]
+    persona = video["personagem"].upper() # CORREÇÃO: Forçando maiúsculas para evitar o erro de Maria
     idioma = video["idioma"]
     foco_teologico = video["foco"]
     
@@ -126,6 +125,7 @@ for video in grade_para_processar:
     elif "Manto" in pilar_do_dia: instrucao_abertura = "Comienza pidiendo ser escondido y blindado bajo el manto sagrado contra los peligros del mundo."
     elif "Milagros" in pilar_do_dia: instrucao_abertura = "Comienza con un fuerte y alegre agradecimiento por los milagros y la vida."
 
+    # INJEÇÃO DE IDENTIDADE
     persona_prompt = "Jesucristo" if persona == 'JESUS' else "la Virgen de Guadalupe (cariñosamente llamada La Morenita)"
 
     tema_gerado = None
@@ -156,6 +156,9 @@ for video in grade_para_processar:
     regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario in["18:00", "21:00"] else ""
     cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario in["18:00", "21:00"] else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     
+    # REGRA DE BLINDAGEM DE PERSONAGEM
+    regra_persona = "OBLIGATORIO: Como te diriges a Jesucristo, ESTÁ ESTRICTAMENTE PROHIBIDO mencionar a María, la Virgen o Guadalupe." if persona == 'JESUS' else "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita'."
+
     titulo_sufixo = ""
     if horario == "06:00": titulo_sufixo = "Oración de la Mañana"
     elif horario == "12:00": titulo_sufixo = "Oración del Mediodía"
@@ -173,20 +176,22 @@ for video in grade_para_processar:
     REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
     1. AUDIENCIA GLOBAL: Tu audiencia es toda Latinoamérica y el mundo hispanohablante. PROHIBIDO mencionar países específicos. Usa un Español Latino neutro.
     2. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase tocando directamente en el dolor o la esperanza del fiel con empatía profunda. Luego, conecta con esta estructura: {instrucao_abertura}
-    3. PROFUNDIDAD Y EMOCIÓN: Concéntrate en UN SOLO TEMA central. Escribe párrafos elaborados y profundos. NO hagas listas de pedidos.
-    4. ARCO EN 3 ACTOS: Divide la oración en Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye un bloque obligatorio pidiendo por la salud de los enfermos.
-    5. PAUSAS NATURALES: OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas reflexivas en la voz.
-    6. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
-    7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
-    8. CIERRE Y VELOCITY: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. {cta_comentarios} Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
-    9. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas. NO uses asteriscos (*).
+    3. PROFUNDIDAD Y EMOCIÓN: Concéntrate en UN SOLO TEMA central. Escribe párrafos elaborados y profundos (no te limites a una sola frase por párrafo, pero tampoco los hagas gigantescos).
+    4. ARCO EN 3 ACTOS: Divide la oración en Vulnerabilidad -> Súplica -> Entrega/Gratitud.
+    5. BLOCO DE SALUD Y FAMILIA ADAPTADO: Dentro del desarrollo (Movimiento 2), debes incluir obligatoriamente un bloque de 2 a 3 párrafos dedicado a pedir por la salud de los enfermos y la unión familiar. Este bloque NO debe ser genérico; DEBES adaptarlo orgánicamente al pilar del día ({pilar_do_dia}) y dirigirlo exclusivamente a la persona correcta ({persona_prompt}). Usa un lenguaje devocional y cálido, nunca clínico.
+    6. PAUSAS NATURALES: OBLIGATORIO usar abundantes puntos suspensivos (...) a lo largo de la oración para forzar pausas reflexivas en la voz.
+    7. CENSURA GRÁFICA: PROHIBIDO usar descripciones gráficas de violencia física. Usa metáforas suaves.
+    8. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!", o exclamaciones teatrales.
+    9. CIERRE Y VELOCITY: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. {cta_comentarios} Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
+    10. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas. NO uses asteriscos (*).
     
+    {regra_persona}
     {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas al inicio de cada sección:
     TITULO:[Escribe aquí un título magnético. FORMATO OBLIGATORIO: "[Promesa Urgente o Gatillo de Alivio] - {titulo_sufixo}". NO PONGAS LA FECHA. SIN ASTERISCOS NI CORCHETES]
     THUMB:[Escribe aquí una frase de impacto de MÁXIMO 4 PALABRAS. DEBE ser una promesa urgente o alivio inmediato CONTEXTUALIZADO con el tema. NUNCA uses títulos descriptivos. SIN ASTERISCOS NI CORCHETES]
-    GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las reglas]
+    GUION:[Escribe aquí la oración completa de aproximadamente 1500 a 1800 palabras siguiendo las regras]
     DESC:[Escribe aquí una descripción de 3 párrafos con fuerte SEO, usando palabras clave de cola larga relacionadas a la oración, sanación y fe]
     TAGS:[Escribe aquí las etiquetas separadas por comas]
     """
@@ -220,7 +225,7 @@ for video in grade_para_processar:
         desc_final = desc_match.group(1).strip() if desc_match else "Descripción Padrão"
         tags_final = tags_match.group(1).replace('*', '').replace('[', '').replace(']', '').strip() if tags_match else "Tags"
         
-        nova_linha =[
+        nova_linha = [
             str(data_alvo), horario, "Pronto p/ Áudio", persona, idioma, 
             tema_gerado, titulo_final, roteiro_final, tags_final, desc_final, "Pendente", thumb_final
         ]
