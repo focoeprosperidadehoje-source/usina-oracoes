@@ -49,53 +49,47 @@ planilha = gc.open_by_key(ID_PLANILHA)
 aba = planilha.get_worksheet(0)
 
 # ==============================================================================
-# 3. RADAR DE 16 LINHAS E SCANNER DE BURACOS
+# 3. RADAR BLINDADO (LÊ APENAS COLUNAS A e B, IGNORA O PASSADO)
 # ==============================================================================
-todas_linhas = aba.get_all_values()
-total_linhas = len(todas_linhas)
-proxima_linha_vazia = total_linhas + 1
-
-ultimas_linhas = todas_linhas[-16:] if total_linhas > 16 else todas_linhas[1:]
+valores_coluna_a = aba.col_values(1)
+valores_coluna_b = aba.col_values(2)
+proxima_linha_vazia = len(valores_coluna_b) + 1 
 
 dias_existentes = {}
 hoje = datetime.date.today()
-maior_data = hoje - datetime.timedelta(days=1)
 
-for linha in ultimas_linhas:
-    if len(linha) >= 2:
-        d_str = linha[0].strip()
-        h_str = linha[1].strip()
-        if d_str and h_str:
-            try:
-                d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
+# Mapeia apenas as datas de HOJE para o futuro
+for d_str, h_str in zip(valores_coluna_a[1:], valores_coluna_b[1:]):
+    d_str, h_str = d_str.strip(), h_str.strip()
+    if d_str and h_str:
+        try:
+            d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
+            if d_obj >= hoje: # REGRA DE FERRO: Ignora o passado
                 if d_obj not in dias_existentes:
                     dias_existentes[d_obj] = []
                 dias_existentes[d_obj].append(h_str)
-                if d_obj > maior_data:
-                    maior_data = d_obj
-            except:
-                pass
+        except:
+            pass
 
-meta_estoque = hoje + datetime.timedelta(days=4) 
+meta_estoque = hoje + datetime.timedelta(days=4) # Hoje + 4 dias = 5 dias de frente
 data_alvo = None
 grade_para_processar =[]
 
-for d_obj in sorted(dias_existentes.keys()):
-    horarios = dias_existentes[d_obj]
-    if 0 < len(horarios) < 4:
-        data_alvo = d_obj
-        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios]
+# Checa dia por dia, de hoje até a meta
+data_check = hoje
+while data_check <= meta_estoque:
+    horarios_presentes = dias_existentes.get(data_check,[])
+    if len(horarios_presentes) < 4:
+        data_alvo = data_check
+        grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
         print(f"⚠️ BURACO ENCONTRADO: Faltam horários no dia {data_alvo}.")
         break
+    data_check += datetime.timedelta(days=1)
 
 if not data_alvo:
-    if maior_data < meta_estoque:
-        data_alvo = maior_data + datetime.timedelta(days=1)
-        grade_para_processar = GRADE_DIARIA
-    else:
-        print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {maior_data}.")
-        print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
-        sys.exit(0)
+    print(f"✅ ESTOQUE ATINGIDO! A planilha já tem vídeos completos até {meta_estoque - datetime.timedelta(days=1)}.")
+    print("💤 O robô vai voltar a dormir para economizar cota. Até amanhã!")
+    sys.exit(0)
 
 dia_da_semana = data_alvo.weekday()
 pilar_do_dia = PILARES[dia_da_semana]
@@ -145,7 +139,7 @@ for video in grade_para_processar:
         try:
             modelo_atual = modelos_cascata[tentativa]
             resp_tema = client.models.generate_content(model=modelo_atual, contents=prompt_tema)
-            tema_gerado = resp_tema.text.replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip()
+            tema_gerado = resp_tema.text.replace('*', '').replace('"', '').strip()
             print(f"   ✨ Tema Criado ({modelo_atual}): {tema_gerado}")
             break 
         except Exception as e:
@@ -162,9 +156,6 @@ for video in grade_para_processar:
     regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario in["18:00", "21:00"] else ""
     cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario in["18:00", "21:00"] else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     
-    # REGRA DE BLINDAGEM DE PERSONAGEM
-    regra_persona = "OBLIGATORIO: Como te diriges a Jesucristo, ESTÁ ESTRICTAMENTE PROHIBIDO mencionar a María, la Virgen o Guadalupe." if persona == 'JESUS' else "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita'."
-
     titulo_sufixo = ""
     if horario == "06:00": titulo_sufixo = "Oración de la Mañana"
     elif horario == "12:00": titulo_sufixo = "Oración del Mediodía"
@@ -190,7 +181,6 @@ for video in grade_para_processar:
     8. CIERRE Y VELOCITY: Termina la oración invitando sutilmente al oyente a dejar su petición en los comentarios (como un libro de intenciones) y a compartir esta luz. {cta_comentarios} Hazlo sonar como una misión de fe, NUNCA como un YouTuber pidiendo likes.
     9. FORMATO ESTRICTO (ANTI-JSON): Escribe en TEXTO PLANO. ESTÁ ESTRICTAMENTE PROHIBIDO usar formato JSON, diccionarios, código, llaves {{ }} o comillas. NO uses asteriscos (*).
     
-    {regra_persona}
     {regra_meditacao}
     
     DEBES usar EXACTAMENTE este formato con estas palabras clave en mayúsculas al inicio de cada sección:
@@ -224,7 +214,6 @@ for video in grade_para_processar:
         desc_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|TITULO:|THUMB:|GUION:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         tags_match = re.search(r'TAGS:\s*(.*?)(?=TITULO:|THUMB:|GUION:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         
-        # Limpeza pesada de colchetes, aspas e asteriscos
         titulo_final = titulo_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if titulo_match else "Título Padrão"
         thumb_final = thumb_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if thumb_match else "ORACIÓN PODEROSA"
         roteiro_final = guion_match.group(1).strip() if guion_match else texto_ia 
