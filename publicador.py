@@ -19,10 +19,7 @@ print(f"🚀 INICIANDO SERVIDOR MATRIX PARA O HORÁRIO: {HORARIO_ALVO}")
 credenciais_dict = json.loads(GOOGLE_JSON)
 creds_sheets = Credentials.from_service_account_info(credenciais_dict, scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
 gc = gspread.authorize(creds_sheets)
-
-# CORREÇÃO APLICADA AQUI: get_worksheet(0)
 aba_principal = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").get_worksheet(0)
-
 try: configs = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("Configuracoes").get_all_records()
 except: configs =[]
 
@@ -49,14 +46,25 @@ def baixar_arquivo(file_id, destino):
     with open(destino, 'wb') as f: f.write(request.execute())
     return destino
 
-def listar_arquivos(folder_id):
+# CORREÇÃO: Função agora filtra por extensão para ignorar atalhos e Google Docs
+def listar_arquivos(folder_id, extensoes=None):
     res =[]
     page_token = None
     while True:
-        response = drive_service.files().list(q=f"'{folder_id}' in parents and trashed=false", spaces='drive', fields='nextPageToken, files(id, name)', pageToken=page_token).execute()
-        res.extend(response.get('files',[]))
-        page_token = response.get('nextPageToken', None)
-        if not page_token: break
+        try:
+            response = drive_service.files().list(q=f"'{folder_id}' in parents and trashed=false", spaces='drive', fields='nextPageToken, files(id, name)', pageToken=page_token).execute()
+            for f in response.get('files',[]):
+                if extensoes:
+                    if f['name'].lower().endswith(extensoes):
+                        res.append(f)
+                else:
+                    res.append(f)
+            page_token = response.get('nextPageToken', None)
+            if not page_token: break
+        except Exception as e:
+            print(f"   ⚠️ Erro ao ler pasta {folder_id}: {e}")
+            time.sleep(5)
+            break
     return res
 
 def obter_duracao(arquivo):
@@ -87,11 +95,11 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
     if img_ratio > 1920/1080:
         nw = int(img.height * (1920/1080))
         off = (img.width - nw) / 2
-        img = img.crop((off, 0, img.width - off, img.height))
+        img = img.crop((off, 0, img.width - offset, img.height))
     else:
         nh = int(img.width / (1920/1080))
         off = (img.height - nh) / 2
-        img = img.crop((0, off, img.width, img.height - off))
+        img = img.crop((0, off, img.width, img.height - offset))
     img = img.resize((1920, 1080))
     
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
@@ -115,7 +123,7 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
         font_size -= 5 
         
     y_text = (1080 - (len(linhas) * font_size * 1.1)) / 2
-    cores = ["white", "#FFD700", "white"] 
+    cores =["white", "#FFD700", "white"] 
     for i, linha in enumerate(linhas):
         w = draw.textbbox((0, 0), linha, font=font)[2] - draw.textbbox((0, 0), linha, font=font)[0]
         x_text = 960 + ((960 - w) / 2)
@@ -140,15 +148,35 @@ for index, linha in enumerate(dados, start=2):
         id_pasta_thumb = ID_PASTA_THUMB_JESUS if persona == 'JESUS' else ID_PASTA_THUMB_MARIA
         voz_escolhida = "es-MX-JorgeNeural" if persona == 'JESUS' else "es-MX-DaliaNeural"
         
-        img_local = baixar_arquivo(random.choice(listar_arquivos(id_pasta_img))['id'], f"{PASTA_TEMP}/img.jpg")
-        thumb_base_local = baixar_arquivo(random.choice(listar_arquivos(id_pasta_thumb))['id'], f"{PASTA_TEMP}/thumb_base.jpg")
-        musica_local = baixar_arquivo(random.choice(listar_arquivos(ID_PASTA_AVE_MARIA if "18:00" in horario_str else ID_PASTA_MUSICAS))['id'], f"{PASTA_TEMP}/musica.mp3")
+        # CORREÇÃO: Travas de segurança para garantir que as pastas não estão vazias
+        arquivos_img = listar_arquivos(id_pasta_img, ('.jpg', '.jpeg', '.png'))
+        if not arquivos_img:
+            print(f"   ❌ ERRO: Nenhuma imagem válida na pasta {id_pasta_img}")
+            continue
+        img_local = baixar_arquivo(random.choice(arquivos_img)['id'], f"{PASTA_TEMP}/img.jpg")
         
-        sfx_file = next((f for f in listar_arquivos(ID_PASTA_SFX) if ("passaro" in f['name'].lower() if "06:00" in horario_str or "12:00" in horario_str else "vento" in f['name'].lower())), None)
+        arquivos_thumb = listar_arquivos(id_pasta_thumb, ('.jpg', '.jpeg', '.png'))
+        if not arquivos_thumb:
+            print(f"   ❌ ERRO: Nenhuma imagem base de thumb na pasta {id_pasta_thumb}")
+            continue
+        thumb_base_local = baixar_arquivo(random.choice(arquivos_thumb)['id'], f"{PASTA_TEMP}/thumb_base.jpg")
+
+        id_pasta_musica = ID_PASTA_AVE_MARIA if "18:00" in horario_str else ID_PASTA_MUSICAS
+        arquivos_musica = listar_arquivos(id_pasta_musica, ('.mp3', '.wav'))
+        if not arquivos_musica:
+            print(f"   ❌ ERRO: Nenhuma música na pasta {id_pasta_musica}")
+            continue
+        musica_local = baixar_arquivo(random.choice(arquivos_musica)['id'], f"{PASTA_TEMP}/musica.mp3")
+        
+        arquivos_sfx = listar_arquivos(ID_PASTA_SFX, ('.mp3', '.wav'))
+        sfx_file = next((f for f in arquivos_sfx if ("passaro" in f['name'].lower() if "06:00" in horario_str or "12:00" in horario_str else "vento" in f['name'].lower())), None)
         sfx_local = baixar_arquivo(sfx_file['id'], f"{PASTA_TEMP}/sfx.mp3") if sfx_file else None
 
-        brolls_validos =[f for f in listar_arquivos(ID_PASTA_BROLLS) if filtro_broll(f['name'], horario_str)]
-        brolls_locais =[baixar_arquivo(random.choice(brolls_validos)['id'], f"{PASTA_TEMP}/broll_{i}.mp4") for i in range(min(3, len(brolls_validos)))]
+        brolls_validos =[f for f in listar_arquivos(ID_PASTA_BROLLS, ('.mp4', '.mov')) if filtro_broll(f['name'], horario_str)]
+        brolls_locais =[]
+        for i in range(min(3, len(brolls_validos))):
+            broll_id = random.choice(brolls_validos)['id']
+            brolls_locais.append(baixar_arquivo(broll_id, f"{PASTA_TEMP}/broll_{i}.mp4"))
 
         caminho_mp3, caminho_vtt, caminho_txt = f"{PASTA_TEMP}/audio.mp3", f"{PASTA_TEMP}/legenda.vtt", f"{PASTA_TEMP}/roteiro.txt"
         with open(caminho_txt, "w", encoding="utf-8") as f: f.write(roteiro.replace('*', '').replace('_', '').replace('"', ''))
@@ -221,6 +249,4 @@ for index, linha in enumerate(dados, start=2):
                 print(f"   🎉 SUCESSO! Vídeo {video_id} publicado.")
                 break
             except Exception as e: time.sleep(15)
-        break 
-
-print("\n🚀 SERVIDOR MATRIX DESLIGANDO.")
+        break # O Matrix faz 1 e desliga
