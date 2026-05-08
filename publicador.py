@@ -19,7 +19,9 @@ print(f"🚀 INICIANDO SERVIDOR MATRIX PARA O HORÁRIO: {HORARIO_ALVO}")
 credenciais_dict = json.loads(GOOGLE_JSON)
 creds_sheets = Credentials.from_service_account_info(credenciais_dict, scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
 gc = gspread.authorize(creds_sheets)
+
 aba_principal = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").get_worksheet(0)
+
 try: configs = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("Configuracoes").get_all_records()
 except: configs =[]
 
@@ -31,8 +33,8 @@ drive_service = build_drive('drive', 'v3', credentials=creds_sheets)
 PASTA_TEMP = "/tmp/fabrica_dark"
 os.makedirs(PASTA_TEMP, exist_ok=True)
 
-# IDs REAIS DO SEU DRIVE
-ID_PASTA_JESUS = "1Xzw7URlFGoMqpMyfOycOpZpnUoX2KmGq"
+# IDs REAIS DO SEU DRIVE (Corrigido com o print)
+ID_PASTA_JESUS = "1Ksl8xFW9_4Q_03Xkq1c2dunovvlo3urH" # ID CORRETO!
 ID_PASTA_MARIA = "1FSpmGvSZDleU4gUJePAj4t5h0ZoVSmEo"
 ID_PASTA_BROLLS = "1mY-ISStykefXFfLdyxKkci3_KpL0bS1z"
 ID_PASTA_MUSICAS = "1gxZA1TlQPzuf737XOo_n8blfOThnddgm"
@@ -46,7 +48,6 @@ def baixar_arquivo(file_id, destino):
     with open(destino, 'wb') as f: f.write(request.execute())
     return destino
 
-# CORREÇÃO: Função agora filtra por extensão para ignorar atalhos e Google Docs
 def listar_arquivos(folder_id, extensoes=None):
     res =[]
     page_token = None
@@ -95,11 +96,11 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
     if img_ratio > 1920/1080:
         nw = int(img.height * (1920/1080))
         off = (img.width - nw) / 2
-        img = img.crop((off, 0, img.width - offset, img.height))
+        img = img.crop((off, 0, img.width - off, img.height)) # CORREÇÃO DO OFFSET APLICADA
     else:
         nh = int(img.width / (1920/1080))
         off = (img.height - nh) / 2
-        img = img.crop((0, off, img.width, img.height - offset))
+        img = img.crop((0, off, img.width, img.height - off)) # CORREÇÃO DO OFFSET APLICADA
     img = img.resize((1920, 1080))
     
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
@@ -123,7 +124,7 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
         font_size -= 5 
         
     y_text = (1080 - (len(linhas) * font_size * 1.1)) / 2
-    cores =["white", "#FFD700", "white"] 
+    cores = ["white", "#FFD700", "white"] 
     for i, linha in enumerate(linhas):
         w = draw.textbbox((0, 0), linha, font=font)[2] - draw.textbbox((0, 0), linha, font=font)[0]
         x_text = 960 + ((960 - w) / 2)
@@ -148,7 +149,6 @@ for index, linha in enumerate(dados, start=2):
         id_pasta_thumb = ID_PASTA_THUMB_JESUS if persona == 'JESUS' else ID_PASTA_THUMB_MARIA
         voz_escolhida = "es-MX-JorgeNeural" if persona == 'JESUS' else "es-MX-DaliaNeural"
         
-        # CORREÇÃO: Travas de segurança para garantir que as pastas não estão vazias
         arquivos_img = listar_arquivos(id_pasta_img, ('.jpg', '.jpeg', '.png'))
         if not arquivos_img:
             print(f"   ❌ ERRO: Nenhuma imagem válida na pasta {id_pasta_img}")
@@ -173,10 +173,7 @@ for index, linha in enumerate(dados, start=2):
         sfx_local = baixar_arquivo(sfx_file['id'], f"{PASTA_TEMP}/sfx.mp3") if sfx_file else None
 
         brolls_validos =[f for f in listar_arquivos(ID_PASTA_BROLLS, ('.mp4', '.mov')) if filtro_broll(f['name'], horario_str)]
-        brolls_locais =[]
-        for i in range(min(3, len(brolls_validos))):
-            broll_id = random.choice(brolls_validos)['id']
-            brolls_locais.append(baixar_arquivo(broll_id, f"{PASTA_TEMP}/broll_{i}.mp4"))
+        brolls_locais =[baixar_arquivo(random.choice(brolls_validos)['id'], f"{PASTA_TEMP}/broll_{i}.mp4") for i in range(min(3, len(brolls_validos)))]
 
         caminho_mp3, caminho_vtt, caminho_txt = f"{PASTA_TEMP}/audio.mp3", f"{PASTA_TEMP}/legenda.vtt", f"{PASTA_TEMP}/roteiro.txt"
         with open(caminho_txt, "w", encoding="utf-8") as f: f.write(roteiro.replace('*', '').replace('_', '').replace('"', ''))
@@ -249,4 +246,6 @@ for index, linha in enumerate(dados, start=2):
                 print(f"   🎉 SUCESSO! Vídeo {video_id} publicado.")
                 break
             except Exception as e: time.sleep(15)
-        break # O Matrix faz 1 e desliga
+        break 
+
+print("\n🚀 SERVIDOR MATRIX DESLIGANDO.")
