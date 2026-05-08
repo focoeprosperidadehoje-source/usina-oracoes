@@ -33,15 +33,16 @@ drive_service = build_drive('drive', 'v3', credentials=creds_sheets)
 PASTA_TEMP = "/tmp/fabrica_dark"
 os.makedirs(PASTA_TEMP, exist_ok=True)
 
-# IDs REAIS DO SEU DRIVE (Corrigido com o print)
-ID_PASTA_JESUS = "1Ksl8xFW9_4Q_03Xkq1c2dunovvlo3urH" # ID CORRETO!
+# IDs REAIS DO SEU DRIVE (Corrigidos e Atualizados)
+ID_PASTA_JESUS = "1kSl8xFW9_4Q_03XKq1c2dunovvlo3urH"
 ID_PASTA_MARIA = "1FSpmGvSZDleU4gUJePAj4t5h0ZoVSmEo"
 ID_PASTA_BROLLS = "1mY-ISStykefXFfLdyxKkci3_KpL0bS1z"
 ID_PASTA_MUSICAS = "1gxZA1TlQPzuf737XOo_n8blfOThnddgm"
 ID_PASTA_AVE_MARIA = "1VPmJ5JHXZ6ky0yRwVgqLmRZrl3HhtK3u"
 ID_PASTA_SFX = "1CxSDrCzVatG0bZwTVIN6yDKLO7umIgaX"
-ID_PASTA_THUMB_JESUS = "1d1KcGUy895ccivgio9QxVbIzSdNeCTN5"
-ID_PASTA_THUMB_MARIA = "1HQZdx0DYsJNFIqoeYW6dXiNs6QXbCor_"
+ID_PASTA_THUMB_JESUS_DIA = "1d1KcGUy895ccivgio9QxVbIzSdNeCTN5"
+ID_PASTA_THUMB_JESUS_NOITE = "1BFOWc6rNlhSpNAOatF2aWK7hEjPqMMzk"
+ID_PASTA_THUMB_MARIA_DIA = "1HQZdx0DYsJNFIqoeYW6dXiNs6QXbCor_"
 
 def baixar_arquivo(file_id, destino):
     request = drive_service.files().get_media(fileId=file_id)
@@ -76,7 +77,7 @@ def filtro_broll(nome, horario):
     n = nome.lower()
     if "06:00" in horario or "12:00" in horario: return any(x in n for x in ["dia", "velas"])
     elif "18:00" in horario: return any(x in n for x in["velas", "flores", "noite"])
-    elif "21:00" in horario: return any(x in n for x in ["noite", "cosmos", "velas"])
+    elif "21:00" in horario: return any(x in n for x in["noite", "cosmos", "velas"])
     return True
 
 def formatar_vtt(caminho_vtt):
@@ -96,11 +97,11 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
     if img_ratio > 1920/1080:
         nw = int(img.height * (1920/1080))
         off = (img.width - nw) / 2
-        img = img.crop((off, 0, img.width - off, img.height)) # CORREÇÃO DO OFFSET APLICADA
+        img = img.crop((off, 0, img.width - off, img.height))
     else:
         nh = int(img.width / (1920/1080))
         off = (img.height - nh) / 2
-        img = img.crop((0, off, img.width, img.height - off)) # CORREÇÃO DO OFFSET APLICADA
+        img = img.crop((0, off, img.width, img.height - off))
     img = img.resize((1920, 1080))
     
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
@@ -146,7 +147,13 @@ for index, linha in enumerate(dados, start=2):
         print(f"🎬 INICIANDO: Linha {index} - {persona} às {horario_str}")
         
         id_pasta_img = ID_PASTA_JESUS if persona == 'JESUS' else ID_PASTA_MARIA
-        id_pasta_thumb = ID_PASTA_THUMB_JESUS if persona == 'JESUS' else ID_PASTA_THUMB_MARIA
+        
+        # LÓGICA DE THUMBS CORRIGIDA
+        if persona == 'JESUS':
+            id_pasta_thumb = ID_PASTA_THUMB_JESUS_DIA if "06:00" in horario_str else ID_PASTA_THUMB_JESUS_NOITE
+        else:
+            id_pasta_thumb = ID_PASTA_THUMB_MARIA_DIA
+            
         voz_escolhida = "es-MX-JorgeNeural" if persona == 'JESUS' else "es-MX-DaliaNeural"
         
         arquivos_img = listar_arquivos(id_pasta_img, ('.jpg', '.jpeg', '.png'))
@@ -181,7 +188,10 @@ for index, linha in enumerate(dados, start=2):
         subprocess.run(["edge-tts", "--voice", voz_escolhida, f"--rate=-{random.randint(15, 20)}%", "--file", caminho_txt, "--write-media", caminho_mp3, "--write-subtitles", caminho_vtt], capture_output=True)
         formatar_vtt(caminho_vtt)
         duracao_audio = obter_duracao(caminho_mp3)
-        duracao_total = duracao_audio + 300 if horario_str in["18:00", "21:00"] else duracao_audio
+        
+        # CORREÇÃO APLICADA AQUI: A variável tem_extensao voltou!
+        tem_extensao = horario_str in["18:00", "21:00"]
+        duracao_total = duracao_audio + 300 if tem_extensao else duracao_audio
 
         tempo_acumulado, lista_ts, contador = 0,[], 0
         while tempo_acumulado < duracao_total:
