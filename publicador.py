@@ -19,9 +19,7 @@ print(f"🚀 INICIANDO SERVIDOR MATRIX PARA O HORÁRIO: {HORARIO_ALVO}")
 credenciais_dict = json.loads(GOOGLE_JSON)
 creds_sheets = Credentials.from_service_account_info(credenciais_dict, scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
 gc = gspread.authorize(creds_sheets)
-
 aba_principal = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").get_worksheet(0)
-
 try: configs = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("Configuracoes").get_all_records()
 except: configs =[]
 
@@ -33,7 +31,6 @@ drive_service = build_drive('drive', 'v3', credentials=creds_sheets)
 PASTA_TEMP = "/tmp/fabrica_dark"
 os.makedirs(PASTA_TEMP, exist_ok=True)
 
-# IDs REAIS DO SEU DRIVE (Corrigidos e Atualizados)
 ID_PASTA_JESUS = "1kSl8xFW9_4Q_03XKq1c2dunovvlo3urH"
 ID_PASTA_MARIA = "1FSpmGvSZDleU4gUJePAj4t5h0ZoVSmEo"
 ID_PASTA_BROLLS = "1mY-ISStykefXFfLdyxKkci3_KpL0bS1z"
@@ -57,14 +54,11 @@ def listar_arquivos(folder_id, extensoes=None):
             response = drive_service.files().list(q=f"'{folder_id}' in parents and trashed=false", spaces='drive', fields='nextPageToken, files(id, name)', pageToken=page_token).execute()
             for f in response.get('files',[]):
                 if extensoes:
-                    if f['name'].lower().endswith(extensoes):
-                        res.append(f)
-                else:
-                    res.append(f)
+                    if f['name'].lower().endswith(extensoes): res.append(f)
+                else: res.append(f)
             page_token = response.get('nextPageToken', None)
             if not page_token: break
         except Exception as e:
-            print(f"   ⚠️ Erro ao ler pasta {folder_id}: {e}")
             time.sleep(5)
             break
     return res
@@ -77,7 +71,7 @@ def filtro_broll(nome, horario):
     n = nome.lower()
     if "06:00" in horario or "12:00" in horario: return any(x in n for x in ["dia", "velas"])
     elif "18:00" in horario: return any(x in n for x in["velas", "flores", "noite"])
-    elif "21:00" in horario: return any(x in n for x in["noite", "cosmos", "velas"])
+    elif "21:00" in horario: return any(x in n for x in ["noite", "cosmos", "velas"])
     return True
 
 def formatar_vtt(caminho_vtt):
@@ -147,20 +141,18 @@ for index, linha in enumerate(dados, start=2):
         print(f"🎬 INICIANDO: Linha {index} - {persona} às {horario_str}")
         
         id_pasta_img = ID_PASTA_JESUS if persona == 'JESUS' else ID_PASTA_MARIA
-        
-        # LÓGICA DE THUMBS CORRIGIDA
-        if persona == 'JESUS':
-            id_pasta_thumb = ID_PASTA_THUMB_JESUS_DIA if "06:00" in horario_str else ID_PASTA_THUMB_JESUS_NOITE
-        else:
-            id_pasta_thumb = ID_PASTA_THUMB_MARIA_DIA
-            
+        id_pasta_thumb = ID_PASTA_THUMB_JESUS_DIA if persona == 'JESUS' and "06:00" in horario_str else ID_PASTA_THUMB_JESUS_NOITE if persona == 'JESUS' else ID_PASTA_THUMB_MARIA_DIA
         voz_escolhida = "es-MX-JorgeNeural" if persona == 'JESUS' else "es-MX-DaliaNeural"
         
+        # CORREÇÃO: Baixa um LOTE de 25 imagens para garantir variedade no vídeo
         arquivos_img = listar_arquivos(id_pasta_img, ('.jpg', '.jpeg', '.png'))
         if not arquivos_img:
             print(f"   ❌ ERRO: Nenhuma imagem válida na pasta {id_pasta_img}")
             continue
-        img_local = baixar_arquivo(random.choice(arquivos_img)['id'], f"{PASTA_TEMP}/img.jpg")
+        random.shuffle(arquivos_img)
+        imgs_locais =[]
+        for i in range(min(25, len(arquivos_img))):
+            imgs_locais.append(baixar_arquivo(arquivos_img[i]['id'], f"{PASTA_TEMP}/img_{i}.jpg"))
         
         arquivos_thumb = listar_arquivos(id_pasta_thumb, ('.jpg', '.jpeg', '.png'))
         if not arquivos_thumb:
@@ -180,7 +172,10 @@ for index, linha in enumerate(dados, start=2):
         sfx_local = baixar_arquivo(sfx_file['id'], f"{PASTA_TEMP}/sfx.mp3") if sfx_file else None
 
         brolls_validos =[f for f in listar_arquivos(ID_PASTA_BROLLS, ('.mp4', '.mov')) if filtro_broll(f['name'], horario_str)]
-        brolls_locais =[baixar_arquivo(random.choice(brolls_validos)['id'], f"{PASTA_TEMP}/broll_{i}.mp4") for i in range(min(3, len(brolls_validos)))]
+        random.shuffle(brolls_validos)
+        brolls_locais =[]
+        for i in range(min(6, len(brolls_validos))):
+            brolls_locais.append(baixar_arquivo(brolls_validos[i]['id'], f"{PASTA_TEMP}/broll_{i}.mp4"))
 
         caminho_mp3, caminho_vtt, caminho_txt = f"{PASTA_TEMP}/audio.mp3", f"{PASTA_TEMP}/legenda.vtt", f"{PASTA_TEMP}/roteiro.txt"
         with open(caminho_txt, "w", encoding="utf-8") as f: f.write(roteiro.replace('*', '').replace('_', '').replace('"', ''))
@@ -188,10 +183,7 @@ for index, linha in enumerate(dados, start=2):
         subprocess.run(["edge-tts", "--voice", voz_escolhida, f"--rate=-{random.randint(15, 20)}%", "--file", caminho_txt, "--write-media", caminho_mp3, "--write-subtitles", caminho_vtt], capture_output=True)
         formatar_vtt(caminho_vtt)
         duracao_audio = obter_duracao(caminho_mp3)
-        
-        # CORREÇÃO APLICADA AQUI: A variável tem_extensao voltou!
-        tem_extensao = horario_str in["18:00", "21:00"]
-        duracao_total = duracao_audio + 300 if tem_extensao else duracao_audio
+        duracao_total = duracao_audio + 300 if horario_str in["18:00", "21:00"] else duracao_audio
 
         tempo_acumulado, lista_ts, contador = 0,[], 0
         while tempo_acumulado < duracao_total:
@@ -199,7 +191,7 @@ for index, linha in enumerate(dados, start=2):
             duracao_padrao = random.randint(8, 15)
             
             if tempo_acumulado >= duracao_audio:
-                ativo = random.choice(brolls_locais) if brolls_locais else img_local
+                ativo = random.choice(brolls_locais) if brolls_locais else imgs_locais[0]
                 duracao_real = min(duracao_padrao, obter_duracao(ativo)) if ativo.endswith('.mp4') else duracao_padrao
                 subprocess.run(f'ffmpeg -y -i "{ativo}" -t {duracao_real} -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,colorchannelmixer=rr=0.6:gg=0.6:bb=0.6" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -r 24 -an "{arquivo_ts}"', shell=True, capture_output=True)
                 tempo_acumulado += duracao_real
@@ -210,7 +202,8 @@ for index, linha in enumerate(dados, start=2):
                     subprocess.run(f'ffmpeg -y -i "{ativo}" -t {duracao_real} -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -r 24 -an "{arquivo_ts}"', shell=True, capture_output=True)
                     tempo_acumulado += duracao_real
                 else:
-                    ativo = img_local
+                    # CORREÇÃO: Circula pelas 25 imagens baixadas para dar variedade
+                    ativo = imgs_locais[contador % len(imgs_locais)]
                     zoom_cmd = "zoompan=z='1.0+0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24" if random.choice(['in', 'out']) == 'in' else "zoompan=z='1.15-0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24"
                     subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_padrao} -vf "scale=3840:2160:force_original_aspect_ratio=increase,crop=3840:2160,{zoom_cmd}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
                     tempo_acumulado += duracao_padrao
@@ -232,7 +225,8 @@ for index, linha in enumerate(dados, start=2):
         thumb_path = criar_thumbnail(thumb_base_local, texto_thumb, horario_str, persona, f"{PASTA_TEMP}/thumb.jpg")
         
         texto_fixo = next((str(c.get('Texto Fixo', c.get('Texto_Fixo', ''))) for c in configs if str(c.get('Idioma', '')).upper() == 'ES'), "")
-        tags_lista = [t.strip()[:30] for t in re.sub(r'[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,]', '', tags_str).split(',') if t.strip()][:15]
+        tags_limpas = re.sub(r'[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,]', '', tags_str)
+        tags_lista = [t.strip()[:30] for t in tags_limpas.split(',') if t.strip()][:15]
         
         capitulos = f"\n\n⏱️ Capítulos de la Oración:\n{format_time(0)} Inicio de la Oración\n{format_time(duracao_audio * 0.33)} Súplica y Fe\n{format_time(duracao_audio * 0.66)} Entrega y Gratitud"
         if tem_extensao: capitulos += f"\n{format_time(duracao_audio)} Meditación y Paz Profunda"
