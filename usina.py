@@ -19,7 +19,6 @@ gc = gspread.authorize(credenciais)
 
 client = Client(api_key=CHAVE_API, http_options={'api_version': 'v1'})
 
-# --- RADAR DE MODELOS (IMORTALIDADE) ---
 def obter_cascata_de_modelos():
     print("📡 Escaneando servidores do Google pelas IAs mais modernas...")
     try:
@@ -51,7 +50,6 @@ GRADE_DIARIA =[
 
 aba = gc.open_by_key(ID_PLANILHA).get_worksheet(0)
 
-# --- AUTO-LIMPEZA (GARI DIGITAL) ---
 todas_linhas = aba.get_all_values()
 if len(todas_linhas) > 500:
     print("🧹 Planilha pesada. Iniciando Auto-Limpeza...")
@@ -60,7 +58,6 @@ if len(todas_linhas) > 500:
 
 proxima_linha_vazia = len(todas_linhas) + 1
 
-# --- SCANNER DE BURACOS ---
 valores_coluna_a = [linha[0].strip() for linha in todas_linhas[1:] if len(linha) > 0]
 valores_coluna_b = [linha[1].strip() for linha in todas_linhas[1:] if len(linha) > 1]
 
@@ -73,7 +70,7 @@ for d_str, h_str in zip(valores_coluna_a, valores_coluna_b):
         try:
             d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
             if d_obj >= limite_passado:
-                if d_obj not in dias_existentes: dias_existentes[d_obj] = []
+                if d_obj not in dias_existentes: dias_existentes[d_obj] =[]
                 dias_existentes[d_obj].append(h_str)
         except: pass
 
@@ -166,11 +163,12 @@ for video in grade_para_processar:
     if not texto_ia: continue
 
     try:
-        t_match = re.search(r'TITULO:\s*(.*?)(?=THUMB:|GUION:|DESC:|TAGS:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
-        th_match = re.search(r'THUMB:\s*(.*?)(?=GUION:|DESC:|TAGS:|TITULO:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
-        g_match = re.search(r'GUION:\s*(.*?)(?=DESC:|TAGS:|TITULO:|THUMB:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
-        d_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|TITULO:|THUMB:|GUION:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
-        tg_match = re.search(r'TAGS:\s*(.*?)(?=TITULO:|THUMB:|GUION:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        # CORREÇÃO: Regex agora aceita TÍTULO e GUIÓN com acentos
+        t_match = re.search(r'T[IÍ]TULO:\s*(.*?)(?=THUMB:|GUI[OÓ]N:|DESC:|TAGS:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        th_match = re.search(r'THUMB:\s*(.*?)(?=GUI[OÓ]N:|DESC:|TAGS:|T[IÍ]TULO:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        g_match = re.search(r'GUI[OÓ]N:\s*(.*?)(?=DESC:|TAGS:|T[IÍ]TULO:|THUMB:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        d_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|T[IÍ]TULO:|THUMB:|GUI[OÓ]N:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
+        tg_match = re.search(r'TAGS:\s*(.*?)(?=T[IÍ]TULO:|THUMB:|GUI[OÓ]N:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         
         titulo_final = t_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if t_match else "Título Padrão"
         thumb_final = th_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if th_match else "ORACIÓN PODEROSA"
