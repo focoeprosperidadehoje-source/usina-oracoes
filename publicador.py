@@ -19,7 +19,10 @@ print(f"🚀 INICIANDO SERVIDOR MATRIX PARA O HORÁRIO: {HORARIO_ALVO}")
 credenciais_dict = json.loads(GOOGLE_JSON)
 creds_sheets = Credentials.from_service_account_info(credenciais_dict, scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
 gc = gspread.authorize(creds_sheets)
-aba_principal = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet(0)
+
+# CORREÇÃO APLICADA AQUI: get_worksheet(0)
+aba_principal = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").get_worksheet(0)
+
 try: configs = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("Configuracoes").get_all_records()
 except: configs =[]
 
@@ -218,4 +221,6 @@ for index, linha in enumerate(dados, start=2):
                 print(f"   🎉 SUCESSO! Vídeo {video_id} publicado.")
                 break
             except Exception as e: time.sleep(15)
-        break # O Matrix faz 1 e desliga
+        break 
+
+print("\n🚀 SERVIDOR MATRIX DESLIGANDO.")
