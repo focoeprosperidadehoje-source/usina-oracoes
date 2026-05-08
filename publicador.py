@@ -77,7 +77,7 @@ def filtro_broll(nome, horario):
     n = nome.lower()
     if "06:00" in horario or "12:00" in horario: return any(x in n for x in ["dia", "velas"])
     elif "18:00" in horario: return any(x in n for x in["velas", "flores", "noite"])
-    elif "21:00" in horario: return any(x in n for x in ["noite", "cosmos", "velas"])
+    elif "21:00" in horario: return any(x in n for x in["noite", "cosmos", "velas"])
     return True
 
 def formatar_vtt(caminho_vtt):
@@ -125,7 +125,7 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
         font_size -= 5 
         
     y_text = (1080 - (len(linhas) * font_size * 1.1)) / 2
-    cores = ["white", "#FFD700", "white"] 
+    cores =["white", "#FFD700", "white"] 
     for i, linha in enumerate(linhas):
         w = draw.textbbox((0, 0), linha, font=font)[2] - draw.textbbox((0, 0), linha, font=font)[0]
         x_text = 960 + ((960 - w) / 2)
@@ -150,11 +150,18 @@ for index, linha in enumerate(dados, start=2):
         id_pasta_thumb = ID_PASTA_THUMB_JESUS_DIA if persona == 'JESUS' and "06:00" in horario_str else ID_PASTA_THUMB_JESUS_NOITE if persona == 'JESUS' else ID_PASTA_THUMB_MARIA_DIA
         voz_escolhida = "es-MX-JorgeNeural" if persona == 'JESUS' else "es-MX-DaliaNeural"
         
+        # --- DOWNLOAD EM LOTE (SMART CACHE) ---
+        print("   📥 Baixando lote de imagens e B-rolls para garantir variedade...")
         arquivos_img = listar_arquivos(id_pasta_img, ('.jpg', '.jpeg', '.png'))
         if not arquivos_img:
             print(f"   ❌ ERRO: Nenhuma imagem válida na pasta {id_pasta_img}")
             continue
-        img_local = baixar_arquivo(random.choice(arquivos_img)['id'], f"{PASTA_TEMP}/img.jpg")
+        
+        random.shuffle(arquivos_img)
+        imgs_locais =[]
+        # Baixa até 45 imagens diferentes para o vídeo
+        for i in range(min(45, len(arquivos_img))):
+            imgs_locais.append(baixar_arquivo(arquivos_img[i]['id'], f"{PASTA_TEMP}/img_{i}.jpg"))
         
         arquivos_thumb = listar_arquivos(id_pasta_thumb, ('.jpg', '.jpeg', '.png'))
         if not arquivos_thumb:
@@ -174,40 +181,76 @@ for index, linha in enumerate(dados, start=2):
         sfx_local = baixar_arquivo(sfx_file['id'], f"{PASTA_TEMP}/sfx.mp3") if sfx_file else None
 
         brolls_validos =[f for f in listar_arquivos(ID_PASTA_BROLLS, ('.mp4', '.mov')) if filtro_broll(f['name'], horario_str)]
-        brolls_locais =[baixar_arquivo(random.choice(brolls_validos)['id'], f"{PASTA_TEMP}/broll_{i}.mp4") for i in range(min(3, len(brolls_validos)))]
+        random.shuffle(brolls_validos)
+        brolls_locais =[]
+        # Baixa até 15 B-rolls diferentes
+        for i in range(min(15, len(brolls_validos))):
+            brolls_locais.append(baixar_arquivo(brolls_validos[i]['id'], f"{PASTA_TEMP}/broll_{i}.mp4"))
 
         caminho_mp3, caminho_vtt, caminho_txt = f"{PASTA_TEMP}/audio.mp3", f"{PASTA_TEMP}/legenda.vtt", f"{PASTA_TEMP}/roteiro.txt"
         with open(caminho_txt, "w", encoding="utf-8") as f: f.write(roteiro.replace('*', '').replace('_', '').replace('"', ''))
             
-        subprocess.run(["edge-tts", "--voice", voz_escolhida, f"--rate=-{random.randint(15, 20)}%", "--file", caminho_txt, "--write-media", caminho_mp3, "--write-subtitles", caminho_vtt], capture_output=True)
+        velocidade_voz = random.randint(15, 20)
+        param_rate = f"--rate=-{velocidade_voz}%"
+        print(f"   🎙️ Gerando Voz Neural ({voz_escolhida} a {param_rate} vel) y Legendas...")
+        
+        subprocess.run(["edge-tts", "--voice", voz_escolhida, param_rate, "--file", caminho_txt, "--write-media", caminho_mp3, "--write-subtitles", caminho_vtt], capture_output=True)
         formatar_vtt(caminho_vtt)
         duracao_audio = obter_duracao(caminho_mp3)
-        duracao_total = duracao_audio + 300 if horario_str in["18:00", "21:00"] else duracao_audio
+        
+        tem_extensao = horario_str in["18:00", "21:00"]
+        duracao_total = duracao_audio + 300 if tem_extensao else duracao_audio
 
-        tempo_acumulado, lista_ts, contador = 0,[], 0
+        print(f"   ⏱️ Duração da Oração: {duracao_audio:.2f}s | Duração Total do Vídeo: {duracao_total:.2f}s")
+
+        # --- C. RENDERIZAR VÍDEO ---
+        print("   🎞️ Fabricando os blocos visuais (Zoom 4K e B-Rolls)...")
+        tempo_acumulado = 0
+        lista_ts =[]
+        contador_chunk = 0
+        
+        # Baralhos de uso para a montagem
+        baralho_imgs_uso = imgs_locais.copy()
+        baralho_brolls_uso = brolls_locais.copy()
+        random.shuffle(baralho_imgs_uso)
+        random.shuffle(baralho_brolls_uso)
+        
         while tempo_acumulado < duracao_total:
-            arquivo_ts = f"{PASTA_TEMP}/chunk_{contador}.ts"
-            duracao_padrao = random.randint(8, 15)
+            arquivo_ts = f"{PASTA_TEMP}/chunk_{contador_chunk}.ts"
+            duracao_padrao = random.randint(8, 12) # AJUSTADO PARA 8 A 12 SEGUNDOS
             
             if tempo_acumulado >= duracao_audio:
-                ativo = random.choice(brolls_locais) if brolls_locais else img_local
+                # FASE DE MEDITAÇÃO
+                if not baralho_brolls_uso:
+                    baralho_brolls_uso = brolls_locais.copy()
+                    random.shuffle(baralho_brolls_uso)
+                ativo = baralho_brolls_uso.pop() if brolls_locais else imgs_locais[0]
                 duracao_real = min(duracao_padrao, obter_duracao(ativo)) if ativo.endswith('.mp4') else duracao_padrao
                 subprocess.run(f'ffmpeg -y -i "{ativo}" -t {duracao_real} -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,colorchannelmixer=rr=0.6:gg=0.6:bb=0.6" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -r 24 -an "{arquivo_ts}"', shell=True, capture_output=True)
                 tempo_acumulado += duracao_real
             else:
-                if contador > 0 and brolls_locais and random.random() < 0.30:
-                    ativo = random.choice(brolls_locais)
+                # FASE DE ORAÇÃO
+                if contador_chunk > 0 and brolls_locais and random.random() < 0.30:
+                    if not baralho_brolls_uso:
+                        baralho_brolls_uso = brolls_locais.copy()
+                        random.shuffle(baralho_brolls_uso)
+                    ativo = baralho_brolls_uso.pop()
                     duracao_real = min(duracao_padrao, obter_duracao(ativo))
                     subprocess.run(f'ffmpeg -y -i "{ativo}" -t {duracao_real} -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -r 24 -an "{arquivo_ts}"', shell=True, capture_output=True)
                     tempo_acumulado += duracao_real
                 else:
-                    ativo = img_local
-                    zoom_cmd = "zoompan=z='1.0+0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24" if random.choice(['in', 'out']) == 'in' else "zoompan=z='1.15-0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24"
+                    if not baralho_imgs_uso:
+                        baralho_imgs_uso = imgs_locais.copy()
+                        random.shuffle(baralho_imgs_uso)
+                    ativo = baralho_imgs_uso.pop()
+                    efeito_zoom = random.choice(['in', 'out'])
+                    zoom_cmd = "zoompan=z='1.0+0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24" if efeito_zoom == 'in' else "zoompan=z='1.15-0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24"
                     subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_padrao} -vf "scale=3840:2160:force_original_aspect_ratio=increase,crop=3840:2160,{zoom_cmd}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
                     tempo_acumulado += duracao_padrao
             lista_ts.append(arquivo_ts)
-            contador += 1
+            contador_chunk += 1
 
+        print("   🔥 Mixando Áudio y finalizando o vídeo...")
         arquivo_concat = f"{PASTA_TEMP}/concat.txt"
         with open(arquivo_concat, "w") as f:
             for ts in lista_ts: f.write(f"file '{ts}'\n")
@@ -226,21 +269,13 @@ for index, linha in enumerate(dados, start=2):
         tags_limpas = re.sub(r'[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,]', '', tags_str)
         tags_lista = [t.strip()[:30] for t in tags_limpas.split(',') if t.strip()][:15]
         
-        # CORREÇÃO APLICADA AQUI: Lógica direta sem a variável tem_extensao
         capitulos = f"\n\n⏱️ Capítulos de la Oración:\n{format_time(0)} Inicio de la Oración\n{format_time(duracao_audio * 0.33)} Súplica y Fe\n{format_time(duracao_audio * 0.66)} Entrega y Gratitud"
-        if horario_str in["18:00", "21:00"]: 
-            capitulos += f"\n{format_time(duracao_audio)} Meditación y Paz Profunda"
-            
-        descricao_final = f"{descricao_ia}{capitulos}\n\n{texto_fixo}"
+        if tem_extensao: capitulos += f"\n{format_time(duracao_audio)} Meditación y Paz Profunda"
         
-        try:
-            tz_mexico = pytz.timezone('America/Mexico_City')
-            dt_obj = datetime.datetime.strptime(f"{data_str} {horario_str}", "%Y-%m-%d %H:%M")
-            publish_at = tz_mexico.localize(dt_obj).isoformat() 
-        except:
-            publish_at = None
+        try: publish_at = pytz.timezone('America/Mexico_City').localize(datetime.datetime.strptime(f"{data_str} {horario_str}", "%Y-%m-%d %H:%M")).isoformat() 
+        except: publish_at = None
         
-        body = {"snippet": {"title": titulo[:100], "description": descricao_final, "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False}}
+        body = {"snippet": {"title": titulo[:100], "description": f"{descricao_ia}{capitulos}\n\n{texto_fixo}", "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False}}
         if publish_at: body["status"]["publishAt"] = publish_at
         
         for _ in range(3):
