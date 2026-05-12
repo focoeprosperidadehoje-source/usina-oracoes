@@ -42,10 +42,10 @@ PILARES = {
     4: "Misericordia y Sanación Física (Viernes)", 5: "El Manto de Guadalupe (Sábado)", 6: "Milagros y Gratitud (Domingo)"
 }
 GRADE_DIARIA =[
-    {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección para el día que nace."},
-    {"horario": "12:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Intercesión por la familia, salud y las aflicciones de la jornada."},
-    {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer: Acogimiento maternal, consuelo y gratitud por el día."},
-    {"horario": "21:00", "personagem": "Jesus", "idioma": "ES", "foco": "Noche: Entrega del sueño, perdón y descanso profundo en Dios."}
+    {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección para el día que nace.", "periodo": "en esta mañana"},
+    {"horario": "12:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Intercesión por la familia, salud y las aflicciones de la jornada.", "periodo": "en este mediodía"},
+    {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer: Acogimiento maternal, consuelo y gratitud por el día.", "periodo": "en este atardecer"},
+    {"horario": "21:00", "personagem": "Jesus", "idioma": "ES", "foco": "Noche: Entrega del sueño, perdón y descanso profundo en Dios.", "periodo": "en esta noche"}
 ]
 
 aba = gc.open_by_key(ID_PLANILHA).get_worksheet(0)
@@ -97,20 +97,20 @@ print(f"\n📅 DATA ALVO: {data_alvo} | Pilar: {pilar_do_dia}")
 esperas_exponenciais =[10, 20, 40, 80, 120]
 
 for video in grade_para_processar:
-    horario, persona, idioma, foco_teologico = video["horario"], video["personagem"].upper(), video["idioma"], video["foco"]
+    horario, persona, idioma, foco_teologico, periodo = video["horario"], video["personagem"].upper(), video["idioma"], video["foco"], video["periodo"]
     if data_alvo.weekday() == 4:
         foco_teologico += " ENFOQUE: Misericordia y Perdón." if horario in["06:00", "12:00"] else " ENFOQUE: La Pasión de Cristo y el Sacrificio."
 
     print(f"🎬 PRODUZINDO: {horario} | {persona}")
     
     instrucao_abertura = ""
-    if "Guerra" in pilar_do_dia: instrucao_abertura = "Comienza reconociendo una amenaza o envidia invisible, y luego invoca protección."
-    elif "Vicios" in pilar_do_dia: instrucao_abertura = "Comienza con el dolor de ver a un ser querido en ataduras, pidiendo liberación."
-    elif "Familiar" in pilar_do_dia: instrucao_abertura = "Comienza evocando las fricciones y el deseo de paz en el hogar."
-    elif "Providencia" in pilar_do_dia: instrucao_abertura = "Comienza reconociendo el esfuerzo, las deudas o la necesidad de puertas abiertas."
-    elif "Misericordia" in pilar_do_dia: instrucao_abertura = "Comienza pidiendo sanación para el cuerpo enfermo y perdón para el alma."
-    elif "Manto" in pilar_do_dia: instrucao_abertura = "Comienza pidiendo ser escondido bajo el manto sagrado contra los peligros."
-    elif "Milagros" in pilar_do_dia: instrucao_abertura = "Comienza con un fuerte agradecimiento por los milagros y la vida."
+    if "Guerra" in pilar_do_dia: instrucao_abertura = "Haz la ambientación sensorial del momento del día y luego invoca protección contra amenazas o envidias invisibles."
+    elif "Vicios" in pilar_do_dia: instrucao_abertura = "Haz la ambientación sensorial del momento del día y luego pide liberación por un ser querido en ataduras."
+    elif "Familiar" in pilar_do_dia: instrucao_abertura = "Haz la ambientación sensorial del momento del día y luego evoca el deseo de paz en el hogar."
+    elif "Providencia" in pilar_do_dia: instrucao_abertura = "Haz la ambientación sensorial del momento del día y luego reconoce el esfuerzo y la necesidad de puertas abiertas."
+    elif "Misericordia" in pilar_do_dia: instrucao_abertura = "Haz la ambientación sensorial del momento del día y luego pide sanación para el cuerpo y perdón para el alma."
+    elif "Manto" in pilar_do_dia: instrucao_abertura = "Haz la ambientación sensorial del momento del día y luego pide ser escondido bajo el manto sagrado."
+    elif "Milagros" in pilar_do_dia: instrucao_abertura = "Haz la ambientación sensorial del momento del día y luego agradece fuertemente por los milagros."
 
     persona_prompt = "Jesucristo" if persona == 'JESUS' else "la Virgen de Guadalupe (cariñosamente llamada La Morenita)"
 
@@ -128,25 +128,29 @@ for video in grade_para_processar:
     regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario in["18:00", "21:00"] else ""
     cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario in["18:00", "21:00"] else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     regra_persona = "OBLIGATORIO: Como te diriges a Jesucristo, ESTÁ ESTRICTAMENTE PROHIBIDO mencionar a María, la Virgen o Guadalupe." if persona == 'JESUS' else "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita'."
-    titulo_sufixo = "Oración de la Mañana" if horario == "06:00" else "Oración del Mediodía" if horario == "12:00" else "Oración Mariana" if horario == "18:00" else "Oración de la Noche"
-
+    
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe. Escribe una oración extensa de 1500 a 1800 palabras sobre "{tema_gerado}" dirigida a {persona_prompt}. 
-    CONTEXTO: Publicada a las {horario}. Enfoque: "{foco_teologico}". 
-    REGLAS:
+    CONTEXTO: Enfoque: "{foco_teologico}". 
+    
+    REGLAS CRÍTICAS DE RETENCIÓN, TTS Y MONETIZACIÓN:
     1. AUDIENCIA GLOBAL: Español Latino neutro. PROHIBIDO mencionar países.
-    2. GANCHO INICIAL (0-60s): NO te presentes. Empieza tocando el dolor/esperanza del fiel. Luego conecta con: {instrucao_abertura}
-    3. PROFUNDIDAD: UN SOLO TEMA central. Párrafos elaborados.
-    4. ARCO: Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye bloque pidiendo por la salud de los enfermos.
-    5. PAUSAS: OBLIGATORIO usar abundantes puntos suspensivos (...) para forzar pausas en la voz.
-    6. CENSURA: PROHIBIDO descripciones de violencia física.
-    7. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!".
-    8. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes.
-    9. ANTI-JSON: Escribe en TEXTO PLANO. PROHIBIDO JSON, llaves {{ }} o asteriscos (*).
+    2. HORARIOS: PROHIBIDO mencionar la hora exacta (como 06:00 o 18:00). Usa SOLO la expresión "{periodo}".
+    3. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase con una AFIRMACIÓN EMPÁTICA sobre el dolor o la esperanza del oyente (Ej: 'Sé que el cansancio pesa en tus hombros hoy...'). LUEGO, conecta con esta estructura: {instrucao_abertura}. LUEGO, haz una promesa de que si se queda hasta el final, encontrará alivio.
+    4. PROFUNDIDAD: UN SOLO TEMA central. Párrafos elaborados y profundos. NO hagas listas de pedidos.
+    5. RESET DE ATENCIÓN: A la mitad de la oración, antes de pedir por la salud, inserta un 'Reset de Atención' hablado (Ej: 'Presta mucha atención ahora, no dejes que las distracciones te alejen, porque vamos a clamar por tu salud...').
+    6. ARCO: Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye bloque pidiendo por la salud de los enfermos.
+    7. PAUSAS: OBLIGATORIO usar abundantes puntos suspensivos (...) para forzar pausas en la voz.
+    8. CENSURA: PROHIBIDO descripciones de violencia física.
+    9. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!".
+    10. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes.
+    11. ANTI-JSON: Escribe en TEXTO PLANO. PROHIBIDO JSON, llaves {{ }} o asteriscos (*).
+    
     {regra_persona}
     {regra_meditacao}
+    
     FORMATO EXACTO:
-    TITULO:[Título magnético. FORMATO: "[Promesa Urgente] - {titulo_sufixo}". SIN FECHA. SIN ASTERISCOS NI CORCHETES]
+    TITULO:[Título magnético. FORMATO: "[Promesa Urgente o Gatillo de Alivio] - Oración {periodo}". SIN FECHA. SIN ASTERISCOS NI CORCHETES]
     THUMB:[Frase de impacto de MÁXIMO 4 PALABRAS. Promesa urgente. SIN ASTERISCOS NI CORCHETES]
     GUION:[Oración completa de 1500 a 1800 palabras]
     DESC:[Descripción de 3 párrafos con fuerte SEO]
@@ -163,7 +167,6 @@ for video in grade_para_processar:
     if not texto_ia: continue
 
     try:
-        # CORREÇÃO: Regex agora aceita TÍTULO e GUIÓN com acentos
         t_match = re.search(r'T[IÍ]TULO:\s*(.*?)(?=THUMB:|GUI[OÓ]N:|DESC:|TAGS:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         th_match = re.search(r'THUMB:\s*(.*?)(?=GUI[OÓ]N:|DESC:|TAGS:|T[IÍ]TULO:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         g_match = re.search(r'GUI[OÓ]N:\s*(.*?)(?=DESC:|TAGS:|T[IÍ]TULO:|THUMB:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
