@@ -61,9 +61,12 @@ try:
         ja_respondi = any(r['snippet'].get('authorChannelId', {}).get('value') == MEU_CANAL_ID for r in thread.get('replies', {}).get('comments',[]))
         if not ja_respondi:
             nome, texto = top.get('authorDisplayName', 'Hermano(a)'), top.get('textOriginal', '')
-            prompt = f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. Escribe una respuesta CORTA (máx 3 líneas) agradeciendo o bendiciendo. Tono cálido. SIN comillas."
+            
+            # MODO PACIFICADOR INJETADO
+            prompt = f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. Escribe una respuesta CORTA (máx 3 líneas). Si el comentario es negativo o critica imágenes, ACTIVA EL MODO PACIFICADOR: responde con extrema educación, diciendo que respetamos su visión, pero invítalo a unirse en el amor a Dios. Si es positivo, agradece y bendice. Tono cálido. SIN comillas."
+            
             try:
-                resposta = gemini_client.models.generate_content(model='gemini-2.5-flash', contents=prompt).text.strip()
+                resposta = gemini_client.models.generate_content(model='gemini-3.1-flash-lite', contents=prompt).text.strip()
                 youtube.comments().insert(part="snippet", body={"snippet": {"parentId": thread['id'], "textOriginal": resposta}}).execute()
                 print(f"   ✅ Respondido a {nome}")
                 time.sleep(3)
