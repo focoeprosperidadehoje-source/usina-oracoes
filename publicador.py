@@ -10,35 +10,29 @@ from googleapiclient.discovery import build as build_drive
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# 1. PUXANDO AS CHAVES DO COFRE DO GITHUB
 GOOGLE_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 YT_TOKEN_JSON = os.environ.get("YOUTUBE_TOKEN_ES")
 HORARIO_ALVO = os.environ.get("HORARIO_ALVO")
 
 print(f"🚀 INICIANDO SERVIDOR MATRIX PARA O HORÁRIO: {HORARIO_ALVO}")
 
-# 2. AUTENTICAÇÃO PLANILHA E DRIVE (Invisível)
 credenciais_dict = json.loads(GOOGLE_JSON)
 creds_sheets = Credentials.from_service_account_info(credenciais_dict, scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
 gc = gspread.authorize(creds_sheets)
 
-aba_principal = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").get_worksheet(0)
+# CORREÇÃO: BUSCA POR NOME EXATO
+aba_principal = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("ES")
 try: configs = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("Configuracoes").get_all_records()
 except: configs =[]
 
-# 3. AUTENTICAÇÃO YOUTUBE (Com Renovação Automática)
 creds_yt = YTCredentials.from_authorized_user_info(json.loads(YT_TOKEN_JSON))
-if creds_yt and creds_yt.expired and creds_yt.refresh_token: 
-    print("🔄 Renovando o Token do YouTube...")
-    creds_yt.refresh(Request())
+if creds_yt and creds_yt.expired and creds_yt.refresh_token: creds_yt.refresh(Request())
 youtube = build('youtube', 'v3', credentials=creds_yt)
 drive_service = build_drive('drive', 'v3', credentials=creds_sheets)
 
-# 4. PASTAS TEMPORÁRIAS DO SERVIDOR LINUX
 PASTA_TEMP = "/tmp/fabrica_dark"
 os.makedirs(PASTA_TEMP, exist_ok=True)
 
-# IDs REAIS DO SEU DRIVE
 ID_PASTA_JESUS = "1kSl8xFW9_4Q_03XKq1c2dunovvlo3urH"
 ID_PASTA_MARIA = "1FSpmGvSZDleU4gUJePAj4t5h0ZoVSmEo"
 ID_PASTA_BROLLS = "1mY-ISStykefXFfLdyxKkci3_KpL0bS1z"
@@ -49,7 +43,6 @@ ID_PASTA_THUMB_JESUS_DIA = "1d1KcGUy895ccivgio9QxVbIzSdNeCTN5"
 ID_PASTA_THUMB_JESUS_NOITE = "1BFOWc6rNlhSpNAOatF2aWK7hEjPqMMzk"
 ID_PASTA_THUMB_MARIA_DIA = "1HQZdx0DYsJNFIqoeYW6dXiNs6QXbCor_"
 
-# --- FUNÇÕES DE INTELIGÊNCIA ---
 def baixar_arquivo(file_id, destino):
     request = drive_service.files().get_media(fileId=file_id)
     with open(destino, 'wb') as f: f.write(request.execute())
@@ -67,10 +60,7 @@ def listar_arquivos(folder_id, extensoes=None):
                 else: res.append(f)
             page_token = response.get('nextPageToken', None)
             if not page_token: break
-        except Exception as e:
-            print(f"   ⚠️ Erro ao ler pasta {folder_id}: {e}")
-            time.sleep(5)
-            break
+        except: time.sleep(5); break
     return res
 
 def obter_duracao(arquivo):
@@ -108,13 +98,15 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
         img = img.crop((0, off, img.width, img.height - off))
     img = img.resize((1920, 1080))
     
-    draw = ImageDraw.Draw(img)
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw_overlay = ImageDraw.Draw(overlay)
+    for i in range(960):
+        alpha = int((i / 960) * 240) 
+        draw_overlay.rectangle([(960 + i, 0), (961 + i, 1080)], fill=(0, 0, 0, alpha))
+    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
     
-    # BARRA VERTICAL GROSSA (120px) COM NOVAS CORES
-    if "06:00" in horario: cor_barra = "#FFD700" # Dourado
-    elif "12:00" in horario: cor_barra = "#FF8C00" # Laranja
-    elif "18:00" in horario: cor_barra = "#228B22" # Verde
-    else: cor_barra = "#00BFFF" # Azul Diamante
+    draw = ImageDraw.Draw(img)
+    cor_barra = "#FFD700" if "06:00" in horario else "#FF8C00" if "12:00" in horario else "#228B22" if "18:00" in horario else "#00BFFF"
     draw.rectangle([(0, 0), (120, 1080)], fill=cor_barra)
     
     texto = texto_curto.upper()
@@ -128,86 +120,41 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
         
     y_text = (1080 - (len(linhas) * font_size * 1.1)) / 2
     cores = ["white", "#FFD700", "white"] 
-    
     for i, linha in enumerate(linhas):
         w = draw.textbbox((0, 0), linha, font=font)[2] - draw.textbbox((0, 0), linha, font=font)[0]
-        x_text = 960 + ((960 - w) / 2) # Centralizado na metade direita
-        cor_atual = cores[i % len(cores)]
-        
-        # CONTORNO PRETO GROSSO (Stroke) - SEM GRADIENTE NO FUNDO
-        draw.text((x_text, y_text), linha, font=font, fill=cor_atual, stroke_width=12, stroke_fill="black")
+        x_text = 960 + ((960 - w) / 2)
+        for ax in range(-8, 9, 2):
+            for ay in range(-8, 9, 2): draw.text((x_text+ax, y_text+ay), linha, font=font, fill="black")
+        draw.text((x_text, y_text), linha, font=font, fill=cores[i % len(cores)])
         y_text += font_size * 1.1
-        
     img.convert("RGB").save(caminho_saida)
     return caminho_saida
 
-# ==============================================================================
-# 5. INICIANDO A FÁBRICA (TRATOR DE UPLOAD MATRIX)
-# ==============================================================================
-print("\n📡 Buscando roteiros prontos na planilha...")
 dados = aba_principal.get_all_records()
 col_status = aba_principal.row_values(1).index('Status') + 1
 
 for index, linha in enumerate(dados, start=2):
-    status = str(linha.get('Status', '')).strip()
-    idioma = str(linha.get('Idioma', '')).strip().upper()
-    horario_str = str(linha.get('Horario', '')).strip()
-    
-    # O SERVIDOR MATRIX SÓ PROCESSA O SEU HORÁRIO ESPECÍFICO
-    if status == 'Pronto p/ Áudio' and idioma == 'ES' and horario_str == HORARIO_ALVO:
-        data_str = str(linha.get('Data', ''))
-        titulo = str(linha.get('Titulo', ''))
-        descricao_ia = str(linha.get('Descricao', ''))
-        tags_str = str(linha.get('Tags', ''))
-        persona = str(linha.get('Personagem', '')).upper()
-        roteiro = str(linha.get('Roteiro', ''))
+    if str(linha.get('Status', '')).strip() == 'Pronto p/ Áudio' and str(linha.get('Idioma', '')).strip().upper() == 'ES' and str(linha.get('Horario', '')).strip() == HORARIO_ALVO:
+        data_str, horario_str, titulo, descricao_ia, tags_str, persona, roteiro = str(linha.get('Data', '')), str(linha.get('Horario', '')), str(linha.get('Titulo', '')), str(linha.get('Descricao', '')), str(linha.get('Tags', '')), str(linha.get('Personagem', '')).upper(), str(linha.get('Roteiro', ''))
+        texto_thumb = str(linha.get('Texto_Thumb', linha.get('Texto Thumb', ''))).strip() or " ".join(titulo.split()[:3])
         
-        texto_thumb = str(linha.get('Texto_Thumb', linha.get('Texto Thumb', ''))).strip()
-        if not texto_thumb:
-            palavras_titulo = titulo.split()
-            texto_thumb = " ".join(palavras_titulo[:3]) if len(palavras_titulo) >= 3 else titulo
-            
-        print(f"\n==================================================")
-        print(f"🎬 INICIANDO PRODUÇÃO TOTAL | Linha {index} - {persona} às {horario_str} ({data_str})")
+        print(f"🎬 INICIANDO: Linha {index} - {persona} às {horario_str}")
         
-        if not roteiro.strip():
-            print("   ❌ ERRO: O roteiro está vazio. Pulando...")
-            continue
-            
-        roteiro_limpo = roteiro.replace('*', '').replace('_', '').replace('"', '')
+        id_pasta_img = ID_PASTA_JESUS if persona == 'JESUS' else ID_PASTA_MARIA
+        id_pasta_thumb = ID_PASTA_THUMB_JESUS_DIA if persona == 'JESUS' and "06:00" in horario_str else ID_PASTA_THUMB_JESUS_NOITE if persona == 'JESUS' else ID_PASTA_THUMB_MARIA_DIA
+        voz_escolhida = "es-MX-JorgeNeural" if persona == 'JESUS' else "es-MX-DaliaNeural"
         
-        # --- A. ESCOLHER ATIVOS E VOZ ---
-        print("   📥 Baixando ativos do Google Drive...")
-        if persona == 'JESUS':
-            id_pasta_img = ID_PASTA_JESUS
-            id_pasta_thumb = ID_PASTA_THUMB_JESUS_DIA if "06:00" in horario_str else ID_PASTA_THUMB_JESUS_NOITE
-            voz_escolhida = "es-MX-JorgeNeural"
-        else:
-            id_pasta_img = ID_PASTA_MARIA
-            id_pasta_thumb = ID_PASTA_THUMB_MARIA_DIA
-            voz_escolhida = "es-MX-DaliaNeural"
-            
         arquivos_img = listar_arquivos(id_pasta_img, ('.jpg', '.jpeg', '.png'))
-        if not arquivos_img:
-            print(f"   ❌ ERRO: Nenhuma imagem válida na pasta {id_pasta_img}")
-            continue
-        
+        if not arquivos_img: continue
         random.shuffle(arquivos_img)
-        imgs_locais =[]
-        for i in range(min(25, len(arquivos_img))):
-            imgs_locais.append(baixar_arquivo(arquivos_img[i]['id'], f"{PASTA_TEMP}/img_{i}.jpg"))
+        imgs_locais = [baixar_arquivo(arquivos_img[i]['id'], f"{PASTA_TEMP}/img_{i}.jpg") for i in range(min(25, len(arquivos_img)))]
         
         arquivos_thumb = listar_arquivos(id_pasta_thumb, ('.jpg', '.jpeg', '.png'))
-        if not arquivos_thumb:
-            print(f"   ❌ ERRO: Nenhuma imagem base de thumb na pasta {id_pasta_thumb}")
-            continue
+        if not arquivos_thumb: continue
         thumb_base_local = baixar_arquivo(random.choice(arquivos_thumb)['id'], f"{PASTA_TEMP}/thumb_base.jpg")
 
         id_pasta_musica = ID_PASTA_AVE_MARIA if "18:00" in horario_str else ID_PASTA_MUSICAS
         arquivos_musica = listar_arquivos(id_pasta_musica, ('.mp3', '.wav'))
-        if not arquivos_musica:
-            print(f"   ❌ ERRO: Nenhuma música na pasta {id_pasta_musica}")
-            continue
         musica_local = baixar_arquivo(random.choice(arquivos_musica)['id'], f"{PASTA_TEMP}/musica.mp3")
         
         arquivos_sfx = listar_arquivos(ID_PASTA_SFX, ('.mp3', '.wav'))
@@ -216,75 +163,46 @@ for index, linha in enumerate(dados, start=2):
 
         brolls_validos =[f for f in listar_arquivos(ID_PASTA_BROLLS, ('.mp4', '.mov')) if filtro_broll(f['name'], horario_str)]
         random.shuffle(brolls_validos)
-        brolls_locais =[]
-        for i in range(min(6, len(brolls_validos))):
-            brolls_locais.append(baixar_arquivo(brolls_validos[i]['id'], f"{PASTA_TEMP}/broll_{i}.mp4"))
+        brolls_locais =[baixar_arquivo(brolls_validos[i]['id'], f"{PASTA_TEMP}/broll_{i}.mp4") for i in range(min(6, len(brolls_validos)))]
 
-        # --- B. GERAR ÁUDIO E LEGENDAS ---
-        caminho_mp3 = f"{PASTA_TEMP}/audio.mp3"
-        caminho_vtt = f"{PASTA_TEMP}/legenda.vtt"
-        caminho_txt = f"{PASTA_TEMP}/roteiro.txt"
-        
-        with open(caminho_txt, "w", encoding="utf-8") as f: f.write(roteiro_limpo)
+        caminho_mp3, caminho_vtt, caminho_txt = f"{PASTA_TEMP}/audio.mp3", f"{PASTA_TEMP}/legenda.vtt", f"{PASTA_TEMP}/roteiro.txt"
+        with open(caminho_txt, "w", encoding="utf-8") as f: f.write(roteiro.replace('*', '').replace('_', '').replace('"', ''))
             
         velocidade_voz = random.randint(15, 20)
-        param_rate = f"--rate=-{velocidade_voz}%"
-        print(f"   🎙️ Gerando Voz Neural ({voz_escolhida} a {param_rate} vel) y Legendas...")
-        
-        subprocess.run(["edge-tts", "--voice", voz_escolhida, param_rate, "--file", caminho_txt, "--write-media", caminho_mp3, "--write-subtitles", caminho_vtt], capture_output=True)
+        subprocess.run(["edge-tts", "--voice", voz_escolhida, f"--rate=-{velocidade_voz}%", "--file", caminho_txt, "--write-media", caminho_mp3, "--write-subtitles", caminho_vtt], capture_output=True)
         formatar_vtt(caminho_vtt)
         duracao_audio = obter_duracao(caminho_mp3)
-        
-        tem_extensao = horario_str in["18:00", "21:00"]
-        duracao_total_video = duracao_audio + 300 if tem_extensao else duracao_audio
-        
-        print(f"   ⏱️ Duração da Oração: {duracao_audio:.2f}s | Duração Total do Vídeo: {duracao_total_video:.2f}s")
+        duracao_total = duracao_audio + 300 if horario_str in["18:00", "21:00"] else duracao_audio
 
-        # --- C. RENDERIZAR VÍDEO ---
-        print("   🎞️ Fabricando os blocos visuais (Zoom 4K e B-Rolls)...")
-        tempo_acumulado = 0
-        lista_ts =[]
-        contador_chunk = 0
+        tempo_acumulado, lista_ts, contador = 0,[], 0
+        baralho_imgs_uso, baralho_brolls_uso = imgs_locais.copy(), brolls_locais.copy()
         
-        baralho_imgs_uso = imgs_locais.copy()
-        baralho_brolls_uso = brolls_locais.copy()
-        random.shuffle(baralho_imgs_uso)
-        random.shuffle(baralho_brolls_uso)
-        
-        while tempo_acumulado < duracao_total_video:
-            arquivo_ts = f"{PASTA_TEMP}/chunk_{contador_chunk}.ts"
+        while tempo_acumulado < duracao_total:
+            arquivo_ts = f"{PASTA_TEMP}/chunk_{contador}.ts"
             duracao_padrao = random.randint(8, 12)
             
             if tempo_acumulado >= duracao_audio:
-                if not baralho_brolls_uso:
-                    baralho_brolls_uso = brolls_locais.copy()
-                    random.shuffle(baralho_brolls_uso)
+                if not baralho_brolls_uso: baralho_brolls_uso = brolls_locais.copy(); random.shuffle(baralho_brolls_uso)
                 ativo = baralho_brolls_uso.pop() if brolls_locais else imgs_locais[0]
                 duracao_real = min(duracao_padrao, obter_duracao(ativo)) if ativo.endswith('.mp4') else duracao_padrao
                 subprocess.run(f'ffmpeg -y -i "{ativo}" -t {duracao_real} -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,colorchannelmixer=rr=0.6:gg=0.6:bb=0.6" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -r 24 -an "{arquivo_ts}"', shell=True, capture_output=True)
                 tempo_acumulado += duracao_real
             else:
-                if contador_chunk > 0 and brolls_locais and random.random() < 0.30:
-                    if not baralho_brolls_uso:
-                        baralho_brolls_uso = brolls_locais.copy()
-                        random.shuffle(baralho_brolls_uso)
+                if contador > 0 and brolls_locais and random.random() < 0.30:
+                    if not baralho_brolls_uso: baralho_brolls_uso = brolls_locais.copy(); random.shuffle(baralho_brolls_uso)
                     ativo = baralho_brolls_uso.pop()
                     duracao_real = min(duracao_padrao, obter_duracao(ativo))
                     subprocess.run(f'ffmpeg -y -i "{ativo}" -t {duracao_real} -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -r 24 -an "{arquivo_ts}"', shell=True, capture_output=True)
                     tempo_acumulado += duracao_real
                 else:
-                    if not baralho_imgs_uso:
-                        baralho_imgs_uso = imgs_locais.copy()
-                        random.shuffle(baralho_imgs_uso)
+                    if not baralho_imgs_uso: baralho_imgs_uso = imgs_locais.copy(); random.shuffle(baralho_imgs_uso)
                     ativo = baralho_imgs_uso.pop()
-                    efeito_zoom = random.choice(['in', 'out'])
-                    zoom_cmd = "zoompan=z='1.0+0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24" if efeito_zoom == 'in' else "zoompan=z='1.15-0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24"
+                    zoom_cmd = "zoompan=z='1.0+0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24" if random.choice(['in', 'out']) == 'in' else "zoompan=z='1.15-0.0004*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1920x1080:fps=24"
                     subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_padrao} -vf "scale=3840:2160:force_original_aspect_ratio=increase,crop=3840:2160,{zoom_cmd}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
                     tempo_acumulado += duracao_padrao
             lista_ts.append(arquivo_ts)
-            contador_chunk += 1
+            contador += 1
 
-        print("   🔥 Mixando Áudio y finalizando o vídeo...")
         arquivo_concat = f"{PASTA_TEMP}/concat.txt"
         with open(arquivo_concat, "w") as f:
             for ts in lista_ts: f.write(f"file '{ts}'\n")
@@ -293,36 +211,26 @@ for index, linha in enumerate(dados, start=2):
 
         video_final = f"{PASTA_TEMP}/final.mp4"
         if sfx_local:
-            subprocess.run(f'ffmpeg -y -i "{video_mudo}" -i "{caminho_mp3}" -stream_loop -1 -i "{musica_local}" -stream_loop -1 -i "{sfx_local}" -filter_complex "[1:a]apad[v_pad];[2:a]volume=\'if(lt(t,{duracao_audio}),0.10,0.25)\':eval=frame[bgm];[3:a]volume=\'if(lt(t,{duracao_audio}),0.15,0.25)\':eval=frame[sfx];[v_pad][bgm][sfx]amix=inputs=3:duration=longest[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -t {duracao_total_video} "{video_final}"', shell=True, capture_output=True)
+            subprocess.run(f'ffmpeg -y -i "{video_mudo}" -i "{caminho_mp3}" -stream_loop -1 -i "{musica_local}" -stream_loop -1 -i "{sfx_local}" -filter_complex "[1:a]apad[v_pad];[2:a]volume=\'if(lt(t,{duracao_audio}),0.10,0.25)\':eval=frame[bgm];[3:a]volume=\'if(lt(t,{duracao_audio}),0.15,0.25)\':eval=frame[sfx];[v_pad][bgm][sfx]amix=inputs=3:duration=longest[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -t {duracao_total} "{video_final}"', shell=True, capture_output=True)
         else:
-            subprocess.run(f'ffmpeg -y -i "{video_mudo}" -i "{caminho_mp3}" -stream_loop -1 -i "{musica_local}" -filter_complex "[1:a]apad[v_pad];[2:a]volume=\'if(lt(t,{duracao_audio}),0.10,0.25)\':eval=frame[bgm];[v_pad][bgm]amix=inputs=2:duration=longest[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -t {duracao_total_video} "{video_final}"', shell=True, capture_output=True)
+            subprocess.run(f'ffmpeg -y -i "{video_mudo}" -i "{caminho_mp3}" -stream_loop -1 -i "{musica_local}" -filter_complex "[1:a]apad[v_pad];[2:a]volume=\'if(lt(t,{duracao_audio}),0.10,0.25)\':eval=frame[bgm];[v_pad][bgm]amix=inputs=2:duration=longest[aout]" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -t {duracao_total} "{video_final}"', shell=True, capture_output=True)
 
-        # --- D. UPLOAD YOUTUBE ---
-        print("   🖼️ Gerando Thumbnail...")
         thumb_path = criar_thumbnail(thumb_base_local, texto_thumb, horario_str, persona, f"{PASTA_TEMP}/thumb.jpg")
-
-        texto_fixo_canal = ""
-        for config in configs:
-            if str(config.get('Idioma', '')).upper() == 'ES':
-                texto_fixo_canal = str(config.get('Texto Fixo', config.get('Texto_Fixo', config.get('Links', ''))))
-                break
-                
+        
+        texto_fixo = next((str(c.get('Texto Fixo', c.get('Texto_Fixo', ''))) for c in configs if str(c.get('Idioma', '')).upper() == 'ES'), "")
         tags_limpas = re.sub(r'[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,]', '', tags_str)
         tags_lista = [t.strip()[:30] for t in tags_limpas.split(',') if t.strip()][:15]
         
         capitulos = f"\n\n⏱️ Capítulos de la Oración:\n{format_time(0)} Inicio de la Oración\n{format_time(duracao_audio * 0.33)} Súplica y Fe\n{format_time(duracao_audio * 0.66)} Entrega y Gratitud"
         if tem_extensao: capitulos += f"\n{format_time(duracao_audio)} Meditación y Paz Profunda"
             
-        descricao_final = f"{descricao_ia}{capitulos}\n\n{texto_fixo_canal}"
+        descricao_final = f"{descricao_ia}{capitulos}\n\n{texto_fixo}"
         
-        try:
-            tz_mexico = pytz.timezone('America/Mexico_City')
-            dt_obj = datetime.datetime.strptime(f"{data_str} {horario_str}", "%Y-%m-%d %H:%M")
-            publish_at = tz_mexico.localize(dt_obj).isoformat() 
-        except:
-            publish_at = None
+        try: publish_at = pytz.timezone('America/Mexico_City').localize(datetime.datetime.strptime(f"{data_str} {horario_str}", "%Y-%m-%d %H:%M")).isoformat() 
+        except: publish_at = None
         
-        body = {"snippet": {"title": titulo[:100], "description": descricao_final, "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False}}
+        # CORREÇÃO: SELO DE IA ADICIONADO AQUI
+        body = {"snippet": {"title": titulo[:100], "description": descricao_final, "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False, "selfDeclaredMadeWithAlteredContent": True}}
         if publish_at: body["status"]["publishAt"] = publish_at
         
         print(f"   ⏳ Subindo vídeo (Agendado para {data_str} às {horario_str} - México)...")
@@ -331,17 +239,26 @@ for index, linha in enumerate(dados, start=2):
             try:
                 video_id = youtube.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video_final, chunksize=-1, resumable=True, mimetype="video/mp4")).execute().get("id")
                 print(f"   ✅ Vídeo enviado! ID: {video_id}")
-                
-                if os.path.exists(thumb_path): youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute()
-                if os.path.exists(caminho_vtt): youtube.captions().insert(part="snippet", body={"snippet": {"videoId": video_id, "language": "es-419", "name": "Español", "isDraft": False}}, media_body=MediaFileUpload(caminho_vtt)).execute()
-                
-                pid = "PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA" if persona == 'JESUS' and "06:00" in horario_str else "PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD" if persona == 'JESUS' and "21:00" in horario_str else "PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w" if persona == 'MARIA' else None
-                if pid: youtube.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute()
-                
-                aba_principal.update_cell(index, col_status, 'Publicado')
-                print(f"   🎉 SUCESSO TOTAL! Linha {index} finalizada.")
                 break
             except Exception as e: time.sleep(15)
-        break # O Matrix faz 1 e desliga
+            
+        try:
+            if os.path.exists(thumb_path):
+                for _ in range(3):
+                    try: youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute(); break
+                    except: time.sleep(5)
+            if os.path.exists(caminho_vtt):
+                for _ in range(3):
+                    try: youtube.captions().insert(part="snippet", body={"snippet": {"videoId": video_id, "language": "es-419", "name": "Español", "isDraft": False}}, media_body=MediaFileUpload(caminho_vtt)).execute(); break
+                    except: time.sleep(5)
+            
+            pid = "PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA" if persona == 'JESUS' and "06:00" in horario_str else "PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD" if persona == 'JESUS' and "21:00" in horario_str else "PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w" if persona == 'MARIA' else None
+            if pid:
+                for _ in range(3):
+                    try: youtube.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute(); break
+                    except: time.sleep(5)
 
-print("\n🚀 SERVIDOR MATRIX DESLIGANDO.")
+            aba_principal.update_cell(index, col_status, 'Publicado')
+            print(f"   🎉 SUCESSO TOTAL! Linha {index} finalizada.")
+        except Exception as e: print(f"   ❌ ERRO NOS METADADOS: {e}")
+        break
