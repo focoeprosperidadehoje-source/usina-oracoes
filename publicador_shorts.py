@@ -9,6 +9,7 @@ from googleapiclient.discovery import build as build_drive
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
+# CHAVES DO COFRE DO GITHUB
 GOOGLE_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 YT_TOKEN_JSON = os.environ.get("YOUTUBE_TOKEN_ES_SHORTS")
 HORARIO_ALVO = os.environ.get("HORARIO_ALVO")
@@ -18,6 +19,7 @@ print(f"🚀 INICIANDO SERVIDOR MATRIX SHORTS PARA: {HORARIO_ALVO}")
 credenciais_dict = json.loads(GOOGLE_JSON)
 creds_sheets = Credentials.from_service_account_info(credenciais_dict, scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
 gc = gspread.authorize(creds_sheets)
+
 aba_shorts = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("ES_SHORTS")
 
 creds_yt = YTCredentials.from_authorized_user_info(json.loads(YT_TOKEN_JSON))
@@ -32,7 +34,6 @@ os.makedirs(PASTA_TEMP, exist_ok=True)
 ID_PASTA_JESUS_VERT = "1Xzw7URlFGoMqpMyfOycOpZpnUoX2KmGq"
 ID_PASTA_MARIA_VERT = "1wKwlerA2SXA27Na_4KMU3x0aaDPqAtBY"
 ID_PASTA_MUSICAS = "1gxZA1TlQPzuf737XOo_n8blfOThnddgm"
-ID_PASTA_AVE_MARIA = "1VPmJ5JHXZ6ky0yRwVgqLmRZrl3HhtK3u"
 
 def baixar_arquivo(file_id, destino):
     for _ in range(4):
@@ -70,9 +71,13 @@ def formatar_vtt(caminho_vtt):
     with open(caminho_vtt, 'r', encoding='utf-8') as f: linhas = f.readlines()
     with open(caminho_vtt, 'w', encoding='utf-8') as f:
         for l in linhas:
-            if '-->' in l: f.write(l.strip() + ' line:75% align:center\n')
-            elif l.strip() == '' or l.startswith('WEBVTT'): f.write(l)
-            else: f.write(textwrap.fill(l.strip(), width=30) + '\n')
+            if '-->' in l:
+                # Força a legenda a ficar na parte inferior da tela (75% da altura)
+                f.write(l.strip() + ' line:75% align:center\n')
+            elif l.strip() == '' or l.startswith('WEBVTT'):
+                f.write(l)
+            else:
+                f.write(textwrap.fill(l.strip(), width=30) + '\n')
 
 dados = aba_shorts.get_all_records()
 col_status = aba_shorts.row_values(1).index('Status') + 1
@@ -89,17 +94,17 @@ for index, linha in enumerate(dados, start=2):
         print("   📥 Baixando imagens verticais...")
         arquivos_img = listar_arquivos(id_pasta_img, ('.jpg', '.jpeg', '.png'))
         if not arquivos_img: continue
+        
         random.shuffle(arquivos_img)
         imgs_locais = [baixar_arquivo(arquivos_img[i]['id'], f"{PASTA_TEMP}/img_{i}.jpg") for i in range(min(6, len(arquivos_img)))]
         
-        id_pasta_musica = ID_PASTA_AVE_MARIA if "19:00" in horario_str else ID_PASTA_MUSICAS
-        arquivos_musica = listar_arquivos(id_pasta_musica, ('.mp3', '.wav'))
+        arquivos_musica = listar_arquivos(ID_PASTA_MUSICAS, ('.mp3', '.wav'))
         musica_local = baixar_arquivo(random.choice(arquivos_musica)['id'], f"{PASTA_TEMP}/musica.mp3")
 
         caminho_mp3, caminho_vtt, caminho_txt = f"{PASTA_TEMP}/audio.mp3", f"{PASTA_TEMP}/legenda.vtt", f"{PASTA_TEMP}/roteiro.txt"
         with open(caminho_txt, "w", encoding="utf-8") as f: f.write(roteiro.replace('*', '').replace('_', '').replace('"', ''))
             
-        print(f"   🎙️ Gerando Voz Neural Aveludada e Legendas ({voz_escolhida})...")
+        print(f"   🎙️ Gerando Voz Neural Aveludada y Legendas ({voz_escolhida})...")
         subprocess.run(["edge-tts", "--voice", voz_escolhida, "--rate=-20%", "--pitch=-10Hz", "--file", caminho_txt, "--write-media", caminho_mp3, "--write-subtitles", caminho_vtt], capture_output=True)
         formatar_vtt(caminho_vtt)
         
@@ -109,28 +114,37 @@ for index, linha in enumerate(dados, start=2):
         
         duracao_audio = obter_duracao(caminho_mp3_trimmed)
 
-        print("   🎞️ Fabricando blocos visuais verticais (1080x1920) com Barra no Rodapé...")
+        print("   🎞️ Fabricando blocos visuais verticais (1080x1920) con Barra en el Rodapié...")
         tempo_acumulado = 0
         lista_ts =[]
         contador_chunk = 0
         
-        cor_hex = "FFD700" if "08:00" in horario_str else "FF8C00" if "13:00" in horario_str else "228B22" if "19:00" in horario_str else "00BFFF"
+        cor_hex = "FFD700" if "08:00" in horario_str else "FF8C00" if "13:00" in horario_str else "32CD32" if "19:00" in horario_str else "00BFFF"
+        
+        imagem_loop_perfeito = imgs_locais[0]
         
         while tempo_acumulado < duracao_audio:
             arquivo_ts = f"{PASTA_TEMP}/chunk_{contador_chunk}.ts"
             duracao_padrao = random.randint(6, 9)
-            ativo = random.choice(imgs_locais)
+            
+            if contador_chunk == 0 or (tempo_acumulado + duracao_padrao >= duracao_audio):
+                ativo = imagem_loop_perfeito
+                duracao_real = duracao_audio - tempo_acumulado if (tempo_acumulado + duracao_padrao >= duracao_audio) else duracao_padrao
+            else:
+                ativo = random.choice(imgs_locais[1:]) if len(imgs_locais) > 1 else imgs_locais[0]
+                duracao_real = duracao_padrao
             
             efeito_zoom = random.choice(['in', 'out'])
             zoom_cmd = "zoompan=z='1.0+0.0008*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1080x1920:fps=24" if efeito_zoom == 'in' else "zoompan=z='1.15-0.0008*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1080x1920:fps=24"
             
-            subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_padrao} -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,{zoom_cmd},drawbox=x=0:y=1840:w=1080:h=80:color={cor_hex}@1.0:t=fill" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
+            # BARRA GROSSA (80px) NO RODAPÉ (y=1840)
+            subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_real} -vf "scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,{zoom_cmd},drawbox=x=0:y=1840:w=1080:h=80:color={cor_hex}@1.0:t=fill" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
             
-            tempo_acumulado += duracao_padrao
+            tempo_acumulado += duracao_real
             lista_ts.append(arquivo_ts)
             contador_chunk += 1
 
-        print("   🔥 Mixando Áudio e finalizando o Short...")
+        print("   🔥 Mixando Áudio y finalizando el Short...")
         arquivo_concat = f"{PASTA_TEMP}/concat.txt"
         with open(arquivo_concat, "w") as f:
             for ts in lista_ts: f.write(f"file '{ts}'\n")
