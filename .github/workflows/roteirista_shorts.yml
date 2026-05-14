@@ -1,0 +1,21 @@
+name: Usina de Shorts (ES)
+
+on:
+  schedule:
+    - cron: '23 11 * * *' # 08:23 BRT (Primeiro disparo)
+    - cron: '23 13 * * *' # 10:23 BRT (Disparo de segurança)
+  workflow_dispatch: 
+
+jobs:
+  produzir_shorts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3'
+      - run: pip install google-genai gspread
+      - env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python usina_shorts.py
