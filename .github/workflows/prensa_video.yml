@@ -1,17 +1,20 @@
 name: 2. Prensa Longos (Matrix ES)
+
 on:
   schedule:
-    - cron: '0 12 * * *'
-    - cron: '0 18 * * *'
+    - cron: '0 12 * * *' # 09:00 BRT
+    - cron: '0 18 * * *' # 15:00 BRT
   workflow_dispatch: 
+
 jobs:
   renderizar_e_publicar:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       matrix:
-        horario: ['06:00', '18:00'] # Apenas os 2 horários novos
+        horario: ['06:00', '18:00'] # Apenas a nova grade de longos
       fail-fast: false
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
