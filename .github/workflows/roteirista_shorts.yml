@@ -1,11 +1,10 @@
-name: Usina de Shorts (ES)
-
+name: 1. Usina Shorts (ES)
 on:
   schedule:
-    - cron: '23 11 * * *' # 08:23 BRT (Primeiro disparo)
-    - cron: '23 13 * * *' # 10:23 BRT (Disparo de segurança)
+    - cron: '23 6 * * *'
+    - cron: '23 8 * * *'
+    - cron: '23 10 * * *'
   workflow_dispatch: 
-
 jobs:
   produzir_shorts:
     runs-on: ubuntu-latest
