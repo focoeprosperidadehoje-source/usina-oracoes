@@ -12,7 +12,6 @@ CHAVE_API_GEMINI = os.environ.get("GEMINI_API_KEY")
 creds_sheets = Credentials.from_service_account_info(json.loads(GOOGLE_JSON), scopes=['https://www.googleapis.com/auth/spreadsheets'])
 gc = gspread.authorize(creds_sheets)
 
-# CORREÇÃO: BUSCA POR NOME EXATO
 try: configs = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("Configuracoes").get_all_records()
 except: configs =[]
 
@@ -44,7 +43,6 @@ if texto_fixo:
                     comentarios = youtube.commentThreads().list(part='snippet', videoId=v_id, maxResults=100).execute()
                     if not any(t['snippet']['topLevelComment']['snippet'].get('authorChannelId', {}).get('value') == MEU_CANAL_ID for t in comentarios.get('items',[])):
                         
-                        # CORREÇÃO: LÓGICA DE SHORTS (SEM LINKS)
                         if "#shorts" in v_titulo.lower():
                             comentario_final = "🙏 ¡Que esta oración rápida bendiga tu día! Visita nuestro canal para las oraciones completas y listas de reproducción."
                         else:
@@ -71,7 +69,6 @@ try:
             nome, texto = top.get('authorDisplayName', 'Hermano(a)'), top.get('textOriginal', '')
             comment_id = top.get('id')
             
-            # CORREÇÃO: MODO PACIFICADOR ANTI-HATE
             prompt = f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. Escribe una respuesta CORTA (máx 3 líneas). Si el comentario es negativo o critica imágenes, ACTIVA EL MODO PACIFICADOR: responde con extrema educación, diciendo que respetamos su visión, pero invítalo a unirse en el amor a Dios. Si es positivo, agradece y bendice. Tono cálido. SIN comillas."
             
             try:
@@ -79,7 +76,6 @@ try:
                 youtube.comments().insert(part="snippet", body={"snippet": {"parentId": thread['id'], "textOriginal": resposta}}).execute()
                 print(f"   ✅ Respondido a {nome}")
                 
-                # CORREÇÃO: LIKE AUTOMÁTICO
                 try:
                     youtube.comments().rate(id=comment_id, rating='like').execute()
                     print("   ❤️ Like dado no comentário!")
