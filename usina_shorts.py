@@ -25,13 +25,11 @@ PILARES = {
     0: "Guerra Espiritual y Protección", 1: "Liberación de Vicios y Ataduras", 2: "Restauración Familiar y Matrimonial",
     3: "Providencia y Puertas Abiertas", 4: "Misericordia y Sanación Física", 5: "El Manto de Guadalupe", 6: "Milagros y Gratitud"
 }
+
+# NOVA GRADE SHORTS: Apenas 14:00
 GRADE_SHORTS =[
-    {"horario": "08:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Dirección y fuerza.", "ref": "06:00"},
-    {"horario": "13:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Causas imposibles y consuelo.", "ref": "12:00"},
-    {"horario": "19:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer: Paz en el hogar y protección.", "ref": "18:00"},
-    {"horario": "22:00", "personagem": "Jesus", "idioma": "ES", "foco": "Noche: Dormir en paz y perdón.", "ref": "21:00"}
+    {"horario": "14:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Causas imposibles, sanación física y milagros.", "ref": "18:00"}
 ]
-MAPA_SINCRONIA = {"08:00": "06:00", "13:00": "12:00", "19:00": "18:00", "22:00": "21:00"}
 
 aba_shorts = gc.open_by_key(ID_PLANILHA).worksheet("ES_SHORTS")
 aba_longos = gc.open_by_key(ID_PLANILHA).worksheet("ES") 
@@ -65,7 +63,7 @@ grade_para_processar =[]
 data_check = limite_passado
 while data_check <= meta_estoque:
     horarios_presentes = dias_existentes.get(data_check,[])
-    if len(horarios_presentes) < 4:
+    if len(horarios_presentes) < len(GRADE_SHORTS):
         data_alvo = data_check
         grade_para_processar = [v for v in GRADE_SHORTS if v["horario"] not in horarios_presentes]
         break
@@ -76,15 +74,13 @@ if not data_alvo:
     sys.exit(0)
 
 pilar_do_dia = PILARES[data_alvo.weekday()]
-print(f"\n📅 DATA ALVO SHORTS: {data_alvo} | Pilar: {pilar_do_dia}")
-
 dados_longos = aba_longos.get_all_values()
 
 for video in grade_para_processar:
     horario, persona, idioma, foco_teologico = video["horario"], video["personagem"].upper(), video["idioma"], video["foco"]
     print(f"🎬 PRODUZINDO SHORT: {horario} | {persona}")
     
-    horario_longo_ref = MAPA_SINCRONIA[horario]
+    horario_longo_ref = video["ref"]
     titulo_referencia = ""
     for linha in dados_longos[1:]:
         if len(linha) > 6 and linha[0].strip() == str(data_alvo) and linha[1].strip() == horario_longo_ref:
@@ -92,12 +88,9 @@ for video in grade_para_processar:
             break
             
     contexto_eco = f"El video largo correspondiente de hoy tiene el título: '{titulo_referencia}'. El Short DEBE ser un eco de este tema." if titulo_referencia else ""
-    persona_prompt = "Jesucristo" if persona == 'JESUS' else "la Virgen de Guadalupe (La Morenita)"
+    persona_prompt = "la Virgen de Guadalupe (La Morenita)"
     
-    if persona == 'JESUS':
-        oracao_padrao = "Padre nuestro que estás en el cielo... santificado sea tu nombre... venga a nosotros tu reino... hágase tu voluntad en la tierra como en el cielo... Danos hoy nuestro pan de cada día... perdona nuestras ofensas... como también nosotros perdonamos a los que nos ofenden... no nos dejes caer en la tentación... y líbranos del mal... Amén."
-    else:
-        oracao_padrao = "Dios te salve, María... llena eres de gracia... el Señor es contigo... bendita tú eres entre todas las mujeres... y bendito es el fruto de tu vientre, Jesús... Santa María, Madre de Dios... ruega por nosotros, pecadores... ahora y en la hora de nuestra muerte... Amén. Santa María de Guadalupe... salva nuestras familias y conserva nuestra fe."
+    oracao_padrao = "Dios te salve, María... llena eres de gracia... el Señor es contigo... bendita tú eres entre todas las mujeres... y bendito es el fruto de tu vientre, Jesús... Santa María, Madre de Dios... ruega por nosotros, pecadores... ahora y en la hora de nuestra muerte... Amén. Santa María de Guadalupe... salva nuestras familias y conserva nuestra fe."
 
     prompt_principal = f"""
     Actúa como un guía espiritual católico. Crea un guion para un video SHORT de YouTube (máximo 40 segundos de lectura).
@@ -105,7 +98,7 @@ for video in grade_para_processar:
     {contexto_eco}
     
     ESTRUCTURA OBLIGATORIA DEL GUION (LOOP PERFECTO):
-    1. GANCHO (Inicio): La primera frase del video. OBLIGATORIO empezar con puntos suspensivos en minúscula (ej: "...la paz que tanto buscas."). Debe conectar con el final.
+    1. GANCHO (Inicio): La primera frase del video. OBLIGATORIO empezar con puntos suspensivos en minúscula (ej: "...la paz que tanto buscas."). Debe conectar con el final. Usa palabras de urgencia como "Milagro" o "Sanación".
     2. ORACIÓN: Escribe EXACTAMENTE esta oración en el medio: "{oracao_padrao}"
     3. CTA Y LOOP (Final): Invita al oyente a buscar la oración completa en el canal. La última frase OBLIGATORIAMENTE debe terminar con puntos suspensivos (ej: "Cierra los ojos y recibe...").
     
