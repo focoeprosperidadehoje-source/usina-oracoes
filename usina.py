@@ -1,17 +1,29 @@
-import os, sys, json, time, re, datetime, gspread
+import os
+import sys
+import json
+import time
+import re
+import datetime
 from google.genai import Client
 from google.oauth2.service_account import Credentials
+import gspread
 
+# ==============================================================================
+# 1. PUXANDO AS CHAVES DO COFRE DO GITHUB
+# ==============================================================================
 CHAVE_API = os.environ.get("GEMINI_API_KEY")
 GOOGLE_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 
 print("🔐 Autenticando no Google Sheets via Service Account...")
 credenciais_dict = json.loads(GOOGLE_JSON)
-creds = Credentials.from_service_account_info(credenciais_dict, scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
-gc = gspread.authorize(creds)
+escopos =['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+credenciais = Credentials.from_service_account_info(credenciais_dict, scopes=escopos)
+gc = gspread.authorize(credenciais)
+
 client = Client(api_key=CHAVE_API, http_options={'api_version': 'v1'})
 
 def obter_cascata_de_modelos():
+    print("📡 Escaneando servidores del Google...")
     try:
         modelos = client.models.list()
         flash =[m.name for m in modelos if 'generateContent' in m.supported_generation_methods and 'exp' not in m.name and 'flash' in m.name and '8b' not in m.name]
@@ -22,6 +34,10 @@ def obter_cascata_de_modelos():
     except: return ['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
 
 modelos_cascata = obter_cascata_de_modelos()
+
+# ==============================================================================
+# 2. CONFIGURAÇÕES DA FÁBRICA E NOVA GRADE (06h e 18h)
+# ==============================================================================
 ID_PLANILHA = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"
 
 PILARES = {
@@ -29,7 +45,6 @@ PILARES = {
     3: "Providencia y Puertas Abiertas", 4: "Misericordia y Sanación Física", 5: "El Manto de Guadalupe", 6: "Milagros y Gratitud"
 }
 
-# NOVA GRADE: Apenas 2 vídeos longos
 GRADE_DIARIA =[
     {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección.", "periodo": "en esta mañana"},
     {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer y Noche: Acogimiento maternal, entrega de los problemas, descanso profundo y paz.", "periodo": "en este atardecer"}
@@ -37,24 +52,29 @@ GRADE_DIARIA =[
 
 aba = gc.open_by_key(ID_PLANILHA).worksheet("ES")
 
+# AUTO-LIMPEZA
 todas_linhas = aba.get_all_values()
 if len(todas_linhas) > 500:
+    print("🧹 Planilha pesada. Iniciando Auto-Limpeza...")
     aba.delete_rows(2, 100)
     todas_linhas = aba.get_all_values()
 
 proxima_linha_vazia = len(todas_linhas) + 1
+
+# ==============================================================================
+# 3. SCANNER DE BURACOS (IGNORA O PASSADO)
+# ==============================================================================
 valores_coluna_a = [linha[0].strip() for linha in todas_linhas[1:] if len(linha) > 0]
 valores_coluna_b = [linha[1].strip() for linha in todas_linhas[1:] if len(linha) > 1]
 
 dias_existentes = {}
 hoje = datetime.date.today()
-limite_passado = hoje - datetime.timedelta(days=2)
 
 for d_str, h_str in zip(valores_coluna_a, valores_coluna_b):
     if d_str and h_str:
         try:
             d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
-            if d_obj >= limite_passado:
+            if d_obj >= hoje:
                 if d_obj not in dias_existentes: dias_existentes[d_obj] = []
                 dias_existentes[d_obj].append(h_str)
         except: pass
@@ -63,12 +83,13 @@ meta_estoque = hoje + datetime.timedelta(days=5)
 data_alvo = None
 grade_para_processar =[]
 
-data_check = limite_passado
+data_check = hoje
 while data_check <= meta_estoque:
     horarios_presentes = dias_existentes.get(data_check,[])
     if len(horarios_presentes) < len(GRADE_DIARIA):
         data_alvo = data_check
         grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
+        print(f"⚠️ BURACO ENCONTRADO: Faltam horários no día {data_alvo}.")
         break
     data_check += datetime.timedelta(days=1)
 
@@ -77,7 +98,12 @@ if not data_alvo:
     sys.exit(0)
 
 pilar_do_dia = PILARES[data_alvo.weekday()]
-esperas =[10, 20, 40, 80, 120]
+print(f"\n📅 DATA ALVO: {data_alvo} | Pilar: {pilar_do_dia}")
+
+# ==============================================================================
+# 4. PRODUÇÃO EM MASSA (COPYWRITING AVANÇADO)
+# ==============================================================================
+esperas_exponenciais =[10, 20, 40, 80, 120]
 
 for video in grade_para_processar:
     horario, persona, idioma, foco_teologico, periodo = video["horario"], video["personagem"].upper(), video["idioma"], video["foco"], video["periodo"]
@@ -103,7 +129,7 @@ for video in grade_para_processar:
         try:
             tema_gerado = client.models.generate_content(model=modelos_cascata[i], contents=prompt_tema).text.replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip()
             break 
-        except: time.sleep(esperas[i])
+        except: time.sleep(esperas_exponenciais[i])
             
     if not tema_gerado: continue 
     time.sleep(5)
@@ -111,6 +137,7 @@ for video in grade_para_processar:
     regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario == "18:00" else ""
     cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario == "18:00" else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     regra_persona = "OBLIGATORIO: Como te diriges a Jesucristo, ESTÁ ESTRICTAMENTE PROHIBIDO mencionar a María, la Virgen o Guadalupe." if persona == 'JESUS' else "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita'."
+    titulo_sufixo = "Oración de la Mañana" if horario == "06:00" else "Oración de la Noche"
 
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe. Escribe una oración extensa de 1500 a 1800 palabras sobre "{tema_gerado}" dirigida a {persona_prompt}. 
@@ -131,7 +158,7 @@ for video in grade_para_processar:
     {regra_persona}
     {regra_meditacao}
     FORMATO EXACTO:
-    TITULO:[Título magnético. FORMATO: "[Promesa Urgente o Gatillo de Alivio] - Oración {periodo}". SIN FECHA. SIN ASTERISCOS NI CORCHETES]
+    TITULO:[Título magnético. FORMATO: "[Promesa Urgente o Gatillo de Alivio] - {titulo_sufixo}". SIN FECHA. SIN ASTERISCOS NI CORCHETES]
     THUMB:[Frase de impacto de MÁXIMO 4 PALABRAS. Promesa urgente. SIN ASTERISCOS NI CORCHETES]
     GUION:[Oración completa de 1500 a 1800 palabras]
     DESC:[Descripción de 3 párrafos con fuerte SEO]
@@ -143,7 +170,7 @@ for video in grade_para_processar:
         try:
             texto_ia = client.models.generate_content(model=modelos_cascata[i], contents=prompt_principal).text
             break 
-        except: time.sleep(esperas[i])
+        except: time.sleep(esperas_exponenciais[i])
             
     if not texto_ia: continue
 
