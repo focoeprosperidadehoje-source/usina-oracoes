@@ -1,39 +1,28 @@
-name: Prensa de Shorts (Matrix ES)
-
+name: 2. Prensa Shorts (Matrix ES)
 on:
   schedule:
-    - cron: '0 10 * * *' # 07:00 BRT (Prepara o Short das 08:00)
-    - cron: '0 15 * * *' # 12:00 BRT (Prepara o Short das 13:00)
-    - cron: '0 21 * * *' # 18:00 BRT (Prepara o Short das 19:00)
-    - cron: '0 0 * * *'  # 21:00 BRT (Prepara o Short das 22:00)
+    - cron: '0 13 * * *'
+    - cron: '0 19 * * *'
   workflow_dispatch: 
-
 jobs:
   renderizar_shorts:
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # 🛡️ TRAVA ANTI-ZUMBI
+    timeout-minutes: 30
     strategy:
       matrix:
-        horario: ['08:00', '13:00', '19:00', '22:00']
+        horario: ['14:00'] # Apenas o horário do Short
       fail-fast: false
-
     steps:
       - uses: actions/checkout@v4
-      
       - uses: actions/setup-python@v5
         with:
           python-version: '3'
-          
-      - name: Instalar FFmpeg
-        run: |
+      - run: |
           sudo apt-get update -y || true
           sudo apt-get install -y ffmpeg
-          
-      - name: Instalar Bibliotecas Python
-        run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 gspread pytz edge-tts
-        
-      - name: Rodar Publicador de Shorts
-        env:
+          wget -q -O Anton.ttf https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf
+      - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 Pillow gspread pytz edge-tts
+      - env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           YOUTUBE_TOKEN_ES_SHORTS: ${{ secrets.YOUTUBE_TOKEN_ES_SHORTS }}
           HORARIO_ALVO: ${{ matrix.horario }}
