@@ -1,17 +1,20 @@
 name: 2. Prensa Shorts (Matrix ES)
+
 on:
   schedule:
-    - cron: '0 13 * * *'
-    - cron: '0 19 * * *'
+    - cron: '0 13 * * *' # 10:00 BRT
+    - cron: '0 19 * * *' # 16:00 BRT
   workflow_dispatch: 
+
 jobs:
   renderizar_shorts:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       matrix:
-        horario: ['14:00'] # Apenas o horário do Short
+        horario: ['14:00'] # Apenas a nova grade de Shorts
       fail-fast: false
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
