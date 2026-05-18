@@ -1,6 +1,12 @@
-import os, sys, json, time, re, datetime, gspread
+import os
+import sys
+import json
+import time
+import re
+import datetime
 from google.genai import Client
 from google.oauth2.service_account import Credentials
+import gspread
 
 CHAVE_API = os.environ.get("GEMINI_API_KEY")
 GOOGLE_JSON = os.environ.get("GOOGLE_CREDENTIALS")
@@ -26,11 +32,12 @@ PILARES = {
     3: "Providencia y Puertas Abiertas", 4: "Misericordia y Sanación Física", 5: "El Manto de Guadalupe", 6: "Milagros y Gratitud"
 }
 
-# NOVA GRADE SHORTS: Apenas 14:00
+# NOVA GRADE SHORTS: Apenas 14:00 (Maria)
 GRADE_SHORTS =[
     {"horario": "14:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Causas imposibles, sanación física y milagros.", "ref": "18:00"}
 ]
 
+# CORREÇÃO: BUSCA POR NOME EXATO
 aba_shorts = gc.open_by_key(ID_PLANILHA).worksheet("ES_SHORTS")
 aba_longos = gc.open_by_key(ID_PLANILHA).worksheet("ES") 
 
@@ -74,6 +81,8 @@ if not data_alvo:
     sys.exit(0)
 
 pilar_do_dia = PILARES[data_alvo.weekday()]
+print(f"\n📅 DATA ALVO SHORTS: {data_alvo} | Pilar: {pilar_do_dia}")
+
 dados_longos = aba_longos.get_all_values()
 
 for video in grade_para_processar:
@@ -88,9 +97,12 @@ for video in grade_para_processar:
             break
             
     contexto_eco = f"El video largo correspondiente de hoy tiene el título: '{titulo_referencia}'. El Short DEBE ser un eco de este tema." if titulo_referencia else ""
-    persona_prompt = "la Virgen de Guadalupe (La Morenita)"
+    persona_prompt = "Jesucristo" if persona == 'JESUS' else "la Virgen de Guadalupe (La Morenita)"
     
-    oracao_padrao = "Dios te salve, María... llena eres de gracia... el Señor es contigo... bendita tú eres entre todas las mujeres... y bendito es el fruto de tu vientre, Jesús... Santa María, Madre de Dios... ruega por nosotros, pecadores... ahora y en la hora de nuestra muerte... Amén. Santa María de Guadalupe... salva nuestras familias y conserva nuestra fe."
+    if persona == 'JESUS':
+        oracao_padrao = "Padre nuestro que estás en el cielo... santificado sea tu nombre... venga a nosotros tu reino... hágase tu voluntad en la tierra como en el cielo... Danos hoy nuestro pan de cada día... perdona nuestras ofensas... como también nosotros perdonamos a los que nos ofenden... no nos dejes caer en la tentación... y líbranos del mal... Amén."
+    else:
+        oracao_padrao = "Dios te salve, María... llena eres de gracia... el Señor es contigo... bendita tú eres entre todas las mujeres... y bendito es el fruto de tu vientre, Jesús... Santa María, Madre de Dios... ruega por nosotros, pecadores... ahora y en la hora de nuestra muerte... Amén. Santa María de Guadalupe... salva nuestras familias y conserva nuestra fe."
 
     prompt_principal = f"""
     Actúa como un guía espiritual católico. Crea un guion para un video SHORT de YouTube (máximo 40 segundos de lectura).
