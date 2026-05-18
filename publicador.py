@@ -20,19 +20,21 @@ credenciais_dict = json.loads(GOOGLE_JSON)
 creds_sheets = Credentials.from_service_account_info(credenciais_dict, scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive'])
 gc = gspread.authorize(creds_sheets)
 
-# CORREÇÃO: BUSCA POR NOME EXATO
 aba_principal = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("ES")
 try: configs = gc.open_by_key("1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU").worksheet("Configuracoes").get_all_records()
 except: configs =[]
 
 creds_yt = YTCredentials.from_authorized_user_info(json.loads(YT_TOKEN_JSON))
-if creds_yt and creds_yt.expired and creds_yt.refresh_token: creds_yt.refresh(Request())
+if creds_yt and creds_yt.expired and creds_yt.refresh_token: 
+    print("🔄 Renovando o Token do YouTube...")
+    creds_yt.refresh(Request())
 youtube = build('youtube', 'v3', credentials=creds_yt)
 drive_service = build_drive('drive', 'v3', credentials=creds_sheets)
 
 PASTA_TEMP = "/tmp/fabrica_dark"
 os.makedirs(PASTA_TEMP, exist_ok=True)
 
+# IDs REAIS DO SEU DRIVE
 ID_PASTA_JESUS = "1kSl8xFW9_4Q_03XKq1c2dunovvlo3urH"
 ID_PASTA_MARIA = "1FSpmGvSZDleU4gUJePAj4t5h0ZoVSmEo"
 ID_PASTA_BROLLS = "1mY-ISStykefXFfLdyxKkci3_KpL0bS1z"
@@ -44,23 +46,30 @@ ID_PASTA_THUMB_JESUS_NOITE = "1BFOWc6rNlhSpNAOatF2aWK7hEjPqMMzk"
 ID_PASTA_THUMB_MARIA_DIA = "1HQZdx0DYsJNFIqoeYW6dXiNs6QXbCor_"
 
 def baixar_arquivo(file_id, destino):
-    request = drive_service.files().get_media(fileId=file_id)
-    with open(destino, 'wb') as f: f.write(request.execute())
-    return destino
+    for _ in range(4):
+        try:
+            request = drive_service.files().get_media(fileId=file_id)
+            with open(destino, 'wb') as f: f.write(request.execute())
+            return destino
+        except: time.sleep(5)
+    raise Exception(f"Falha ao baixar {file_id}")
 
 def listar_arquivos(folder_id, extensoes=None):
     res =[]
     page_token = None
     while True:
-        try:
-            response = drive_service.files().list(q=f"'{folder_id}' in parents and trashed=false", spaces='drive', fields='nextPageToken, files(id, name)', pageToken=page_token).execute()
-            for f in response.get('files',[]):
-                if extensoes:
-                    if f['name'].lower().endswith(extensoes): res.append(f)
-                else: res.append(f)
-            page_token = response.get('nextPageToken', None)
-            if not page_token: break
-        except: time.sleep(5); break
+        for _ in range(4):
+            try:
+                response = drive_service.files().list(q=f"'{folder_id}' in parents and trashed=false", spaces='drive', fields='nextPageToken, files(id, name)', pageToken=page_token).execute()
+                break
+            except: time.sleep(5)
+        else: return res
+        for f in response.get('files',[]):
+            if extensoes:
+                if f['name'].lower().endswith(extensoes): res.append(f)
+            else: res.append(f)
+        page_token = response.get('nextPageToken', None)
+        if not page_token: break
     return res
 
 def obter_duracao(arquivo):
@@ -98,13 +107,6 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
         img = img.crop((0, off, img.width, img.height - off))
     img = img.resize((1920, 1080))
     
-    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    draw_overlay = ImageDraw.Draw(overlay)
-    for i in range(960):
-        alpha = int((i / 960) * 240) 
-        draw_overlay.rectangle([(960 + i, 0), (961 + i, 1080)], fill=(0, 0, 0, alpha))
-    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
-    
     draw = ImageDraw.Draw(img)
     cor_barra = "#FFD700" if "06:00" in horario else "#FF8C00" if "12:00" in horario else "#228B22" if "18:00" in horario else "#00BFFF"
     draw.rectangle([(0, 0), (120, 1080)], fill=cor_barra)
@@ -123,9 +125,8 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
     for i, linha in enumerate(linhas):
         w = draw.textbbox((0, 0), linha, font=font)[2] - draw.textbbox((0, 0), linha, font=font)[0]
         x_text = 960 + ((960 - w) / 2)
-        for ax in range(-8, 9, 2):
-            for ay in range(-8, 9, 2): draw.text((x_text+ax, y_text+ay), linha, font=font, fill="black")
-        draw.text((x_text, y_text), linha, font=font, fill=cores[i % len(cores)])
+        cor_atual = cores[i % len(cores)]
+        draw.text((x_text, y_text), linha, font=font, fill=cor_atual, stroke_width=12, stroke_fill="black")
         y_text += font_size * 1.1
     img.convert("RGB").save(caminho_saida)
     return caminho_saida
@@ -134,8 +135,12 @@ dados = aba_principal.get_all_records()
 col_status = aba_principal.row_values(1).index('Status') + 1
 
 for index, linha in enumerate(dados, start=2):
-    if str(linha.get('Status', '')).strip() == 'Pronto p/ Áudio' and str(linha.get('Idioma', '')).strip().upper() == 'ES' and str(linha.get('Horario', '')).strip() == HORARIO_ALVO:
-        data_str, horario_str, titulo, descricao_ia, tags_str, persona, roteiro = str(linha.get('Data', '')), str(linha.get('Horario', '')), str(linha.get('Titulo', '')), str(linha.get('Descricao', '')), str(linha.get('Tags', '')), str(linha.get('Personagem', '')).upper(), str(linha.get('Roteiro', ''))
+    status = str(linha.get('Status', '')).strip()
+    idioma = str(linha.get('Idioma', '')).strip().upper()
+    horario_str = str(linha.get('Horario', '')).strip()
+    
+    if status == 'Pronto p/ Áudio' and idioma == 'ES' and horario_str == HORARIO_ALVO:
+        data_str, titulo, descricao_ia, tags_str, persona, roteiro = str(linha.get('Data', '')), str(linha.get('Titulo', '')), str(linha.get('Descricao', '')), str(linha.get('Tags', '')), str(linha.get('Personagem', '')).upper(), str(linha.get('Roteiro', ''))
         texto_thumb = str(linha.get('Texto_Thumb', linha.get('Texto Thumb', ''))).strip() or " ".join(titulo.split()[:3])
         
         print(f"🎬 INICIANDO: Linha {index} - {persona} às {horario_str}")
@@ -171,8 +176,12 @@ for index, linha in enumerate(dados, start=2):
         velocidade_voz = random.randint(15, 20)
         subprocess.run(["edge-tts", "--voice", voz_escolhida, f"--rate=-{velocidade_voz}%", "--file", caminho_txt, "--write-media", caminho_mp3, "--write-subtitles", caminho_vtt], capture_output=True)
         formatar_vtt(caminho_vtt)
+        
         duracao_audio = obter_duracao(caminho_mp3)
-        duracao_total = duracao_audio + 300 if horario_str in["18:00", "21:00"] else duracao_audio
+        
+        # A VARIÁVEL CORRIGIDA ESTÁ AQUI
+        tem_extensao = horario_str in ["18:00", "21:00"]
+        duracao_total = duracao_audio + 300 if tem_extensao else duracao_audio
 
         tempo_acumulado, lista_ts, contador = 0,[], 0
         baralho_imgs_uso, baralho_brolls_uso = imgs_locais.copy(), brolls_locais.copy()
@@ -229,36 +238,24 @@ for index, linha in enumerate(dados, start=2):
         try: publish_at = pytz.timezone('America/Mexico_City').localize(datetime.datetime.strptime(f"{data_str} {horario_str}", "%Y-%m-%d %H:%M")).isoformat() 
         except: publish_at = None
         
-        # CORREÇÃO: SELO DE IA ADICIONADO AQUI
         body = {"snippet": {"title": titulo[:100], "description": descricao_final, "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False, "selfDeclaredMadeWithAlteredContent": True}}
         if publish_at: body["status"]["publishAt"] = publish_at
-        
-        print(f"   ⏳ Subindo vídeo (Agendado para {data_str} às {horario_str} - México)...")
         
         for _ in range(3):
             try:
                 video_id = youtube.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video_final, chunksize=-1, resumable=True, mimetype="video/mp4")).execute().get("id")
                 print(f"   ✅ Vídeo enviado! ID: {video_id}")
+                
+                if os.path.exists(thumb_path): youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute()
+                if os.path.exists(caminho_vtt): youtube.captions().insert(part="snippet", body={"snippet": {"videoId": video_id, "language": "es-419", "name": "Español", "isDraft": False}}, media_body=MediaFileUpload(caminho_vtt)).execute()
+                
+                pid = "PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA" if persona == 'JESUS' and "06:00" in horario_str else "PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD" if persona == 'JESUS' and "21:00" in horario_str else "PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w" if persona == 'MARIA' else None
+                if pid: youtube.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute()
+                
+                aba_principal.update_cell(index, col_status, 'Publicado')
+                print(f"   🎉 SUCESSO TOTAL! Linha {index} finalizada.")
                 break
             except Exception as e: time.sleep(15)
-            
-        try:
-            if os.path.exists(thumb_path):
-                for _ in range(3):
-                    try: youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute(); break
-                    except: time.sleep(5)
-            if os.path.exists(caminho_vtt):
-                for _ in range(3):
-                    try: youtube.captions().insert(part="snippet", body={"snippet": {"videoId": video_id, "language": "es-419", "name": "Español", "isDraft": False}}, media_body=MediaFileUpload(caminho_vtt)).execute(); break
-                    except: time.sleep(5)
-            
-            pid = "PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA" if persona == 'JESUS' and "06:00" in horario_str else "PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD" if persona == 'JESUS' and "21:00" in horario_str else "PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w" if persona == 'MARIA' else None
-            if pid:
-                for _ in range(3):
-                    try: youtube.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute(); break
-                    except: time.sleep(5)
+        break 
 
-            aba_principal.update_cell(index, col_status, 'Publicado')
-            print(f"   🎉 SUCESSO TOTAL! Linha {index} finalizada.")
-        except Exception as e: print(f"   ❌ ERRO NOS METADADOS: {e}")
-        break
+print("\n🚀 SERVIDOR MATRIX DESLIGANDO.")
