@@ -1,30 +1,24 @@
-name: 2. Prensa de Vídeos (Matrix)
-
+name: 2. Prensa Longos (Matrix ES)
 on:
   schedule:
-    - cron: '0 12 * * *' # 09:00 BRT
-    - cron: '0 18 * * *' # 15:00 BRT
+    - cron: '0 12 * * *'
+    - cron: '0 18 * * *'
   workflow_dispatch: 
-
 jobs:
   renderizar_e_publicar:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       matrix:
-        horario: 
-          - '06:00'
-          - '12:00'
-          - '18:00'
-          - '21:00'
+        horario: ['06:00', '18:00'] # Apenas os 2 horários novos
       fail-fast: false
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3'
       - run: |
-          sudo apt-get update
+          sudo apt-get update -y || true
           sudo apt-get install -y ffmpeg
           wget -q -O Anton.ttf https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf
       - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 Pillow gspread pytz edge-tts
