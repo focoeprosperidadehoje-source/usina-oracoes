@@ -116,7 +116,7 @@ for index, linha in enumerate(dados, start=2):
         lista_ts =[]
         contador_chunk = 0
         
-        cor_hex = "FFD700" if "08:00" in horario_str else "FF8C00" if "13:00" in horario_str else "32CD32" if "19:00" in horario_str else "00BFFF"
+        cor_hex = "FFD700" if "08:00" in horario_str else "FF8C00" if "13:00" in horario_str else "00008B" if "19:00" in horario_str else "00BFFF"
         
         while tempo_acumulado < duracao_audio:
             arquivo_ts = f"{PASTA_TEMP}/chunk_{contador_chunk}.ts"
