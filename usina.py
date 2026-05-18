@@ -28,14 +28,13 @@ PILARES = {
     0: "Guerra Espiritual y Protección", 1: "Liberación de Vicios y Ataduras", 2: "Restauración Familiar y Matrimonial",
     3: "Providencia y Puertas Abiertas", 4: "Misericordia y Sanación Física", 5: "El Manto de Guadalupe", 6: "Milagros y Gratitud"
 }
+
+# NOVA GRADE: Apenas 2 vídeos longos
 GRADE_DIARIA =[
     {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección.", "periodo": "en esta mañana"},
-    {"horario": "12:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Intercesión por la familia y salud.", "periodo": "en este mediodía"},
-    {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer: Acogimiento maternal y consuelo.", "periodo": "en este atardecer"},
-    {"horario": "21:00", "personagem": "Jesus", "idioma": "ES", "foco": "Noche: Entrega del sueño y perdón.", "periodo": "en esta noche"}
+    {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer y Noche: Acogimiento maternal, entrega de los problemas, descanso profundo y paz.", "periodo": "en este atardecer"}
 ]
 
-# CORREÇÃO: BUSCA POR NOME EXATO
 aba = gc.open_by_key(ID_PLANILHA).worksheet("ES")
 
 todas_linhas = aba.get_all_values()
@@ -67,7 +66,7 @@ grade_para_processar =[]
 data_check = limite_passado
 while data_check <= meta_estoque:
     horarios_presentes = dias_existentes.get(data_check,[])
-    if len(horarios_presentes) < 4:
+    if len(horarios_presentes) < len(GRADE_DIARIA):
         data_alvo = data_check
         grade_para_processar =[v for v in GRADE_DIARIA if v["horario"] not in horarios_presentes]
         break
@@ -83,7 +82,7 @@ esperas =[10, 20, 40, 80, 120]
 for video in grade_para_processar:
     horario, persona, idioma, foco_teologico, periodo = video["horario"], video["personagem"].upper(), video["idioma"], video["foco"], video["periodo"]
     if data_alvo.weekday() == 4:
-        foco_teologico += " ENFOQUE: Misericordia y Perdón." if horario in["06:00", "12:00"] else " ENFOQUE: La Pasión de Cristo y el Sacrificio."
+        foco_teologico += " ENFOQUE: Misericordia y Perdón." if horario == "06:00" else " ENFOQUE: La Pasión de Cristo y el Sacrificio."
 
     print(f"🎬 PRODUZINDO: {horario} | {persona}")
     
@@ -109,10 +108,10 @@ for video in grade_para_processar:
     if not tema_gerado: continue 
     time.sleep(5)
 
-    regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario in["18:00", "21:00"] else ""
-    cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario in["18:00", "21:00"] else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
+    regra_meditacao = "OBLIGATORIO: En la descripción (DESC), añade un aviso destacado diciendo que al final del video hay 5 minutos de música celestial para dormir/meditar." if horario == "18:00" else ""
+    cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario == "18:00" else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     regra_persona = "OBLIGATORIO: Como te diriges a Jesucristo, ESTÁ ESTRICTAMENTE PROHIBIDO mencionar a María, la Virgen o Guadalupe." if persona == 'JESUS' else "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita'."
-    
+
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe. Escribe una oración extensa de 1500 a 1800 palabras sobre "{tema_gerado}" dirigida a {persona_prompt}. 
     CONTEXTO: Enfoque: "{foco_teologico}". 
@@ -120,14 +119,15 @@ for video in grade_para_processar:
     1. AUDIENCIA GLOBAL: Español Latino neutro. PROHIBIDO mencionar países.
     2. HORARIOS: PROHIBIDO mencionar la hora exacta. Usa SOLO la expresión "{periodo}".
     3. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase con una AFIRMACIÓN EMPÁTICA sobre el dolor o la esperanza del oyente. LUEGO, conecta con: {instrucao_abertura}. LUEGO, haz una promesa de alivio si se queda hasta el final.
-    4. PROFUNDIDAD: UN SOLO TEMA central. Párrafos elaborados.
-    5. RESET DE ATENCIÓN: A la mitad de la oración, inserta un 'Reset de Atención' hablado (Ej: 'Presta mucha atención ahora, no dejes que las distracciones te alejen...').
-    6. ARCO: Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye bloque pidiendo por la salud de los enfermos.
-    7. PAUSAS: OBLIGATORIO usar abundantes puntos suspensivos (...) para forzar pausas en la voz.
-    8. CENSURA: PROHIBIDO descripciones de violencia física.
-    9. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!".
-    10. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes.
-    11. ANTI-JSON: Escribe en TEXTO PLANO. PROHIBIDO JSON, llaves {{ }} o asteriscos (*).
+    4. COFRE SEMÁNTICO (SEO Y RETENCIÓN): Teje de forma natural los conceptos de Sanación, Perdón y Protección. ADEMÁS, elige y usa sutilmente solo 2 o 3 de estas palabras mágicas a lo largo del texto: [Puertas Abiertas, Milagros, Providencia, Misericordia, Descanso Profundo]. NO las uses todas juntas.
+    5. PROFUNDIDAD: UN SOLO TEMA central. Párrafos elaborados.
+    6. RESET DE ATENCIÓN: A la mitad de la oración, inserta un 'Reset de Atención' hablado (Ej: 'Presta mucha atención ahora, no dejes que las distracciones te alejen...').
+    7. ARCO: Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye bloque pidiendo por la salud de los enfermos.
+    8. PAUSAS: OBLIGATORIO usar abundantes puntos suspensivos (...) para forzar pausas en la voz.
+    9. CENSURA: PROHIBIDO descripciones de violencia física.
+    10. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!".
+    11. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes.
+    12. ANTI-JSON: Escribe en TEXTO PLANO. PROHIBIDO JSON, llaves {{ }} o asteriscos (*).
     {regra_persona}
     {regra_meditacao}
     FORMATO EXACTO:
