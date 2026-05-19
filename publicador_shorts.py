@@ -69,12 +69,9 @@ def formatar_vtt(caminho_vtt):
     with open(caminho_vtt, 'r', encoding='utf-8') as f: linhas = f.readlines()
     with open(caminho_vtt, 'w', encoding='utf-8') as f:
         for l in linhas:
-            if '-->' in l:
-                f.write(l.strip() + ' line:75% align:center\n')
-            elif l.strip() == '' or l.startswith('WEBVTT'):
-                f.write(l)
-            else:
-                f.write(textwrap.fill(l.strip(), width=30) + '\n')
+            if '-->' in l: f.write(l.strip() + ' line:75% align:center\n')
+            elif l.strip() == '' or l.startswith('WEBVTT'): f.write(l)
+            else: f.write(textwrap.fill(l.strip(), width=30) + '\n')
 
 dados = aba_shorts.get_all_records()
 col_status = aba_shorts.row_values(1).index('Status') + 1
@@ -111,24 +108,31 @@ for index, linha in enumerate(dados, start=2):
         
         duracao_audio = obter_duracao(caminho_mp3_trimmed)
 
-        print("   🎞️ Fabricando blocos visuais verticais (1080x1920) com Barra Grossa no Rodapé...")
+        print("   🎞️ Fabricando blocos visuais verticais (1080x1920) com Barra no Rodapé...")
         tempo_acumulado = 0
         lista_ts =[]
         contador_chunk = 0
         
-        cor_hex = "FFD700" if "08:00" in horario_str else "FF8C00" if "13:00" in horario_str else "00008B" if "19:00" in horario_str else "00BFFF"
+        cor_hex = "FF8C00" # Laranja para as 14h
+        imagem_loop_perfeito = imgs_locais[0]
         
         while tempo_acumulado < duracao_audio:
             arquivo_ts = f"{PASTA_TEMP}/chunk_{contador_chunk}.ts"
             duracao_padrao = random.randint(6, 9)
-            ativo = random.choice(imgs_locais)
+            
+            if contador_chunk == 0 or (tempo_acumulado + duracao_padrao >= duracao_audio):
+                ativo = imagem_loop_perfeito
+                duracao_real = duracao_audio - tempo_acumulado if (tempo_acumulado + duracao_padrao >= duracao_audio) else duracao_padrao
+            else:
+                ativo = random.choice(imgs_locais[1:]) if len(imgs_locais) > 1 else imgs_locais[0]
+                duracao_real = duracao_padrao
             
             efeito_zoom = random.choice(['in', 'out'])
             zoom_cmd = "zoompan=z='1.0+0.0008*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1080x1920:fps=24" if efeito_zoom == 'in' else "zoompan=z='1.15-0.0008*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1080x1920:fps=24"
             
-            subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_padrao} -vf "scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,{zoom_cmd},drawbox=x=0:y=1840:w=1080:h=80:color={cor_hex}@1.0:t=fill" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
+            subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_real} -vf "scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,{zoom_cmd},drawbox=x=0:y=1840:w=1080:h=80:color={cor_hex}@1.0:t=fill" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
             
-            tempo_acumulado += duracao_padrao
+            tempo_acumulado += duracao_real
             lista_ts.append(arquivo_ts)
             contador_chunk += 1
 
@@ -147,10 +151,11 @@ for index, linha in enumerate(dados, start=2):
         
         texto_convite = "\n\n🙏 Para la oración completa y profunda, visita nuestro canal. Publicamos oraciones poderosas 4 veces al día.\n\nNuestras Playlists:\nOraciones de la Mañana: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA\nOraciones para Dormir: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD"
         
+        # CORREÇÃO DO FUSO HORÁRIO DO MÉXICO
         try: 
-            agora_br = datetime.datetime.now(pytz.timezone('America/Sao_Paulo'))
-            data_hora_alvo = pytz.timezone('America/Sao_Paulo').localize(datetime.datetime.strptime(f"{data_str} {horario_str}", "%Y-%m-%d %H:%M"))
-            publish_at = data_hora_alvo.isoformat() if data_hora_alvo > agora_br else None
+            tz_mexico = pytz.timezone('America/Mexico_City')
+            dt_obj = datetime.datetime.strptime(f"{data_str} {horario_str}", "%Y-%m-%d %H:%M")
+            publish_at = tz_mexico.localize(dt_obj).isoformat() 
         except: publish_at = None
         
         body = {"snippet": {"title": titulo[:100], "description": f"{descricao_ia}{texto_convite}", "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False, "selfDeclaredMadeWithAlteredContent": True}}
