@@ -149,12 +149,13 @@ for video in grade_para_processar:
     4. COFRE SEMÁNTICO (SEO Y RETENCIÓN): Teje de forma natural los conceptos de Sanación, Perdón y Protección. ADEMÁS, elige y usa sutilmente solo 2 o 3 de estas palabras mágicas a lo largo del texto: [Puertas Abiertas, Milagros, Providencia, Misericordia, Descanso Profundo]. NO las uses todas juntas.
     5. PROFUNDIDAD: UN SOLO TEMA central. Párrafos elaborados.
     6. RESET DE ATENCIÓN: A la mitad de la oración, inserta un 'Reset de Atención' hablado (Ej: 'Presta mucha atención ahora, no dejes que las distracciones te alejen...').
-    7. ARCO: Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye bloque pidiendo por la salud de los enfermos.
-    8. PAUSAS: OBLIGATORIO usar abundantes puntos suspensivos (...) para forzar pausas en la voz.
-    9. CENSURA: PROHIBIDO descripciones de violencia física.
-    10. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!".
-    11. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes.
-    12. ANTI-JSON: Escribe en TEXTO PLANO. PROHIBIDO JSON, llaves {{ }} o asteriscos (*).
+    7. GANCHOS INVISIBLES DE RETENCIÓN: Cada 300 a 400 palabras, incorpora orgánicamente — sin que el fiel perciba la técnica — uno de estos recursos: (a) ANTICIPACIÓN: anuncia que algo importante será revelado pronto, sin revelarlo aún; (b) REVELACIÓN PARCIAL: entrega una parte de la respuesta espiritual y señala que hay más; (c) VALIDACIÓN EMOCIONAL: nombra exactamente lo que el fiel está sintiendo en ese momento, creando reconocimiento profundo; (d) GIRO DE BLOQUE: realiza una transición inesperada de tono — de súplica a gratitud, de dolor a esperanza — que renueve la atención. Los ganchos deben ser invisibles: el fiel no percibe la técnica, solo siente que no puede dejar de escuchar. Nunca rompas el clima devocional.
+    8. ARCO: Vulnerabilidad -> Súplica -> Entrega/Gratitud. Incluye bloque pidiendo por la salud de los enfermos.
+    9. PAUSAS: OBLIGATORIO usar abundantes puntos suspensivos (...) para forzar pausas en la voz.
+    10. CENSURA: PROHIBIDO descripciones de violencia física.
+    11. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!".
+    12. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes.
+    13. ANTI-JSON: Escribe en TEXTO PLANO. PROHIBIDO JSON, llaves {{ }} o asteriscos (*).
     {regra_persona}
     {regra_meditacao}
     FORMATO EXACTO:

@@ -20,6 +20,17 @@ if creds_yt and creds_yt.expired and creds_yt.refresh_token: creds_yt.refresh(Re
 youtube = build('youtube', 'v3', credentials=creds_yt)
 gemini_client = Client(api_key=CHAVE_API_GEMINI, http_options={'api_version': 'v1'})
 
+def obter_modelo_lite():
+    try:
+        modelos = gemini_client.models.list()
+        lite_models = [m.name for m in modelos if 'generateContent' in m.supported_generation_methods and 'flash-lite' in m.name]
+        return sorted(lite_models, reverse=True)[0] if lite_models else 'gemini-2.5-flash'
+    except:
+        return 'gemini-2.5-flash'
+
+modelo_comunidade = obter_modelo_lite()
+print(f"🤖 Modelo de IA selecionado para a Comunidade: {modelo_comunidade}")
+
 canal_response = youtube.channels().list(part='id,contentDetails', mine=True).execute()
 MEU_CANAL_ID = canal_response['items'][0]['id']
 UPLOADS_PLAYLIST_ID = canal_response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
@@ -72,7 +83,7 @@ try:
             prompt = f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. Escribe una respuesta CORTA (máx 3 líneas). Si el comentario es negativo o critica imágenes, ACTIVA EL MODO PACIFICADOR: responde con extrema educación, diciendo que respetamos su visión, pero invítalo a unirse en el amor a Dios. Si es positivo, agradece y bendice. Tono cálido. SIN comillas."
             
             try:
-                resposta = gemini_client.models.generate_content(model='gemini-3.1-flash-lite', contents=prompt).text.strip()
+                resposta = gemini_client.models.generate_content(model=modelo_comunidade, contents=prompt).text.strip()
                 youtube.comments().insert(part="snippet", body={"snippet": {"parentId": thread['id'], "textOriginal": resposta}}).execute()
                 print(f"   ✅ Respondido a {nome}")
                 

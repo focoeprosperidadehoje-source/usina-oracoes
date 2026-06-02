@@ -113,24 +113,23 @@ for index, linha in enumerate(dados, start=2):
         lista_ts =[]
         contador_chunk = 0
         
-        cor_hex = "FF8C00" # Laranja para as 14h
         imagem_loop_perfeito = imgs_locais[0]
-        
+
         while tempo_acumulado < duracao_audio:
             arquivo_ts = f"{PASTA_TEMP}/chunk_{contador_chunk}.ts"
             duracao_padrao = random.randint(6, 9)
-            
+
             if contador_chunk == 0 or (tempo_acumulado + duracao_padrao >= duracao_audio):
                 ativo = imagem_loop_perfeito
                 duracao_real = duracao_audio - tempo_acumulado if (tempo_acumulado + duracao_padrao >= duracao_audio) else duracao_padrao
             else:
                 ativo = random.choice(imgs_locais[1:]) if len(imgs_locais) > 1 else imgs_locais[0]
                 duracao_real = duracao_padrao
-            
+
             efeito_zoom = random.choice(['in', 'out'])
             zoom_cmd = "zoompan=z='1.0+0.0008*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1080x1920:fps=24" if efeito_zoom == 'in' else "zoompan=z='1.15-0.0008*on':d=400:x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':s=1080x1920:fps=24"
-            
-            subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_real} -vf "scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,{zoom_cmd},drawbox=x=0:y=1840:w=1080:h=80:color={cor_hex}@1.0:t=fill" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
+
+            subprocess.run(f'ffmpeg -y -loop 1 -framerate 24 -i "{ativo}" -t {duracao_real} -vf "scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,{zoom_cmd}" -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "{arquivo_ts}"', shell=True, capture_output=True)
             
             tempo_acumulado += duracao_real
             lista_ts.append(arquivo_ts)

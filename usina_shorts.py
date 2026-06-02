@@ -52,22 +52,21 @@ valores_coluna_b = [linha[1].strip() for linha in todas_linhas[1:] if len(linha)
 
 dias_existentes = {}
 hoje = datetime.date.today()
-limite_passado = hoje - datetime.timedelta(days=2)
 
 for d_str, h_str in zip(valores_coluna_a, valores_coluna_b):
     if d_str and h_str:
         try:
             d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
-            if d_obj >= limite_passado:
+            if d_obj >= hoje:
                 if d_obj not in dias_existentes: dias_existentes[d_obj] =[]
                 dias_existentes[d_obj].append(h_str)
         except: pass
 
-meta_estoque = hoje + datetime.timedelta(days=5) 
+meta_estoque = hoje + datetime.timedelta(days=5)
 data_alvo = None
 grade_para_processar =[]
 
-data_check = limite_passado
+data_check = hoje
 while data_check <= meta_estoque:
     horarios_presentes = dias_existentes.get(data_check,[])
     if len(horarios_presentes) < len(GRADE_SHORTS):
@@ -102,7 +101,7 @@ for video in grade_para_processar:
     if persona == 'JESUS':
         oracao_padrao = "Padre nuestro que estás en el cielo... santificado sea tu nombre... venga a nosotros tu reino... hágase tu voluntad en la tierra como en el cielo... Danos hoy nuestro pan de cada día... perdona nuestras ofensas... como también nosotros perdonamos a los que nos ofenden... no nos dejes caer en la tentación... y líbranos del mal... Amén."
     else:
-        oracao_padrao = "Dios te salve, María... llena eres de gracia... el Señor es contigo... bendita tú eres entre todas las mujeres... y bendito es el fruto de tu vientre, Jesús... Santa María, Madre de Dios... ruega por nosotros, pecadores... ahora y en la hora de nuestra muerte... Amén. Santa María de Guadalupe... salva nuestras familias y conserva nuestra fe."
+        oracao_padrao = "Dios te salve, María... llena eres de gracia... el Señor es contigo... bendita tú eres entre todas las mujeres... y bendito es el fruto de tu vientre Jesús... Santa María, Madre de Dios... ruega por nosotros, pecadores... ahora y en la hora de nuestra muerte... Amén. Santa María de Guadalupe... salva nuestras familias y conserva nuestra fe."
 
     prompt_principal = f"""
     Actúa como un guía espiritual católico. Crea un guion para un video SHORT de YouTube (máximo 40 segundos de lectura).
@@ -110,9 +109,14 @@ for video in grade_para_processar:
     {contexto_eco}
     
     ESTRUCTURA OBLIGATORIA DEL GUION (LOOP PERFECTO):
-    1. GANCHO (Inicio): La primera frase del video. OBLIGATORIO empezar con puntos suspensivos en minúscula (ej: "...la paz que tanto buscas."). Debe conectar con el final. Usa palabras de urgencia como "Milagro" o "Sanación".
+    1. GANCHO (Inicio): La primera frase del video. OBLIGATORIO empezar con puntos suspensivos en minúscula ("..."). Es el complemento sintáctico de la frase final — juntas forman una sola frase continua y completa. Usa palabras de urgencia como "Milagro" o "Sanación".
     2. ORACIÓN: Escribe EXACTAMENTE esta oración en el medio: "{oracao_padrao}"
-    3. CTA Y LOOP (Final): Invita al oyente a buscar la oración completa en el canal. La última frase OBLIGATORIAMENTE debe terminar con puntos suspensivos (ej: "Cierra los ojos y recibe...").
+    3. FRASE DE LOOP (Final): La última frase del video. OBLIGATORIAMENTE debe ser SINTÁCTICAMENTE INCOMPLETA — una cláusula abierta cuyo complemento natural es exactamente la frase inicial. El oyente no percibe el corte porque el cerebro une fin e inicio como una sola frase continua.
+
+    EJEMPLO DE LOOP SINTÁCTICO PERFECTO:
+    Final (incompleto): "...es por eso que hoy necesitas recibir..."
+    Inicio (complemento): "...la gracia que la Virgen guardó especialmente para ti."
+    Leídas en secuencia forman: "es por eso que hoy necesitas recibir la gracia que la Virgen guardó especialmente para ti."
     
     REGLAS DE FLUIDEZ Y CENSURA:
     - Escribe frases fluidas. Usa reticencias (...) para marcar pausas de respiración.

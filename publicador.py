@@ -110,18 +110,19 @@ def criar_thumbnail(img_path, texto_curto, horario, persona, caminho_saida):
     draw.rectangle([(0, 0), (120, 1080)], fill=cor_barra)
     
     texto = texto_curto.upper()
-    font_size = 200
+    font_size = 350
     while font_size > 50:
         try: font = ImageFont.truetype("Anton.ttf", font_size)
         except: break
-        linhas = textwrap.wrap(texto, width=10, break_long_words=False)[:3]
-        if max([draw.textbbox((0, 0), l, font=font)[2] - draw.textbbox((0, 0), l, font=font)[0] for l in linhas] + [0]) <= 860: break
-        font_size -= 5 
-        
+        linhas = textwrap.wrap(texto, width=12, break_long_words=False)[:3]
+        max_w = max([draw.textlength(l, font=font) for l in linhas] + [0])
+        if max_w <= 820: break
+        font_size -= 5
+
     y_text = (1080 - (len(linhas) * font_size * 1.1)) / 2
-    cores = ["white", "#FFD700", "white"] 
+    cores = ["white", "#FFD700", "white"]
     for i, linha in enumerate(linhas):
-        w = draw.textbbox((0, 0), linha, font=font)[2] - draw.textbbox((0, 0), linha, font=font)[0]
+        w = draw.textlength(linha, font=font)
         x_text = 960 + ((960 - w) / 2)
         cor_atual = cores[i % len(cores)]
         draw.text((x_text, y_text), linha, font=font, fill=cor_atual, stroke_width=12, stroke_fill="black")
@@ -162,7 +163,7 @@ for index, linha in enumerate(dados, start=2):
 
         brolls_validos =[f for f in listar_arquivos(ID_PASTA_BROLLS, ('.mp4', '.mov')) if filtro_broll(f['name'], horario_str)]
         random.shuffle(brolls_validos)
-        brolls_locais =[baixar_arquivo(brolls_validos[i]['id'], f"{PASTA_TEMP}/broll_{i}.mp4") for i in range(min(6, len(brolls_validos)))]
+        brolls_locais =[baixar_arquivo(brolls_validos[i]['id'], f"{PASTA_TEMP}/broll_{i}.mp4") for i in range(min(15, len(brolls_validos)))]
 
         caminho_mp3, caminho_vtt, caminho_txt = f"{PASTA_TEMP}/audio.mp3", f"{PASTA_TEMP}/legenda.vtt", f"{PASTA_TEMP}/roteiro.txt"
         with open(caminho_txt, "w", encoding="utf-8") as f: f.write(roteiro.replace('*', '').replace('_', '').replace('"', ''))
