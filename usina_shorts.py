@@ -52,12 +52,13 @@ valores_coluna_b = [linha[1].strip() for linha in todas_linhas[1:] if len(linha)
 
 dias_existentes = {}
 hoje = datetime.date.today()
+limite_passado = hoje - datetime.timedelta(days=2)
 
 for d_str, h_str in zip(valores_coluna_a, valores_coluna_b):
     if d_str and h_str:
         try:
             d_obj = datetime.datetime.strptime(d_str, '%Y-%m-%d').date()
-            if d_obj >= hoje:
+            if d_obj >= limite_passado:
                 if d_obj not in dias_existentes: dias_existentes[d_obj] =[]
                 dias_existentes[d_obj].append(h_str)
         except: pass
@@ -66,7 +67,7 @@ meta_estoque = hoje + datetime.timedelta(days=5)
 data_alvo = None
 grade_para_processar =[]
 
-data_check = hoje
+data_check = limite_passado
 while data_check <= meta_estoque:
     horarios_presentes = dias_existentes.get(data_check,[])
     if len(horarios_presentes) < len(GRADE_SHORTS):
