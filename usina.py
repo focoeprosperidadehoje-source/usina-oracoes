@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import json
 import time
@@ -34,6 +34,67 @@ def obter_cascata_de_modelos():
     except: return ['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
 
 modelos_cascata = obter_cascata_de_modelos()
+
+# ==============================================================================
+# CALENDÁRIO CULTURAL E LITÚRGICO (México / Latino)
+# ==============================================================================
+def calcular_contexto_sazonal(data_alvo):
+    """Retorna contexto especial de datas litúrgicas/culturais para o canal ES."""
+    ano = data_alvo.year
+    mes = data_alvo.month
+    dia = data_alvo.day
+
+    # --- Cálculo da Páscoa (algoritmo gaussiano) ---
+    a = ano % 19
+    b = ano // 100
+    c = ano % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    mes_pascoa = (h + l - 7 * m + 114) // 31
+    dia_pascoa = ((h + l - 7 * m + 114) % 31) + 1
+    pascoa = datetime.date(ano, mes_pascoa, dia_pascoa)
+
+    # Datas móveis derivadas da Páscoa
+    quarta_cinzas  = pascoa - datetime.timedelta(days=46)
+    sexta_santa    = pascoa - datetime.timedelta(days=2)
+    pentecostes    = pascoa + datetime.timedelta(days=49)
+    corpus_christi = pascoa + datetime.timedelta(days=60)
+
+    # Día de las Madres — México: 10 de maio (data fixa)
+    dia_das_maes = datetime.date(ano, 5, 10)
+
+    # --- Verificações ---
+    if data_alvo == quarta_cinzas:
+        return "Hoy es Miércoles de Ceniza, inicio de la Cuaresma. El guión debe reflejar el llamado a la conversión, la penitencia y el ayuno."
+    if data_alvo == sexta_santa:
+        return "Hoy es Viernes Santo, conmemoración de la Pasión y Muerte de Jesucristo. El guión debe ser profundamente meditativo sobre el sacrificio redentor."
+    if data_alvo == pascoa:
+        return "¡Hoy es Domingo de Resurrección! El guión debe estar lleno de alegría pascual, victoria sobre la muerte y esperanza de vida eterna."
+    if data_alvo == pentecostes:
+        return "Hoy es Pentecostés, venida del Espíritu Santo. El guión debe invocar los dones del Espíritu y el fuego de la fe."
+    if data_alvo == corpus_christi:
+        return "Hoy es Corpus Christi, solemnidad del Cuerpo y Sangre de Cristo. El guión debe meditar sobre la Eucaristía como fuente de vida."
+    if data_alvo == dia_das_maes:
+        return "Hoy es el Día de las Madres en México. El guión debe honrar a las madres, especialmente a la Virgen de Guadalupe como Madre de todos."
+
+    # Datas fixas
+    datas_fixas = {
+        (11, 1):  "Hoy es el Día de Todos los Santos. El guión debe invocar la intercesión de los santos y la comunión de los fieles.",
+        (11, 2):  "Hoy es el Día de los Muertos (Fieles Difuntos). El guión debe consolar a quienes perdieron seres queridos y encomendar las almas al Señor.",
+        (12, 8):  "Hoy es la Inmaculada Concepción de María. El guión debe exaltar la pureza y la gracia de la Virgen desde el primer instante de su existencia.",
+        (12, 12): "Hoy es el Día de la Virgen de Guadalupe, Patrona de México y de América Latina. El guión debe celebrar las apariciones a Juan Diego y el amor maternal de la Morenita por su pueblo.",
+        (12, 25): "Hoy es Navidad, el nacimiento de Jesucristo. El guión debe irradiar la alegría del Emmanuel, Dios-con-nosotros.",
+        (12, 31): "Hoy es Víspera de Año Nuevo. El guión debe mezclar gratitud por el año que termina y esperanza renovada para el que comienza.",
+        (1, 1):   "Hoy es Año Nuevo, Solemnidad de María Santísima. El guión debe consagrar el nuevo año a Dios y a la Virgen de Guadalupe.",
+    }
+    return datas_fixas.get((mes, dia), "")
 
 # ==============================================================================
 # 2. CONFIGURAÇÕES DA FÁBRICA E NOVA GRADE (06h e 18h)
@@ -98,7 +159,10 @@ if not data_alvo:
     sys.exit(0)
 
 pilar_do_dia = PILARES[data_alvo.weekday()]
+contexto_sazonal = calcular_contexto_sazonal(data_alvo)
 print(f"\n📅 DATA ALVO: {data_alvo} | Pilar: {pilar_do_dia}")
+if contexto_sazonal:
+    print(f"🗓️ CONTEXTO SAZONAL: {contexto_sazonal}")
 
 # ==============================================================================
 # 4. PRODUÇÃO EM MASSA (COPYWRITING AVANÇADO)
@@ -123,7 +187,7 @@ for video in grade_para_processar:
 
     persona_prompt = "Jesucristo" if persona == 'JESUS' else "la Virgen de Guadalupe (cariñosamente llamada La Morenita)"
 
-    prompt_tema = f"Actúa como Teólogo. Crea un tema corto (máx 8 palabras) para una oración. Pilar: '{pilar_do_dia}', dirigida a '{persona_prompt}', momento: '{foco_teologico}'. SOLO el tema, sin comillas ni asteriscos."
+    prompt_tema = f"Actúa como Teólogo. Crea un tema corto (máx 8 palabras) para una oración. Pilar: '{pilar_do_dia}', dirigida a '{persona_prompt}', momento: '{foco_teologico}'. Estacionalidad: '{contexto_sazonal}'. SOLO el tema, sin comillas ni asteriscos."
     tema_gerado = None
     for i in range(5):
         try:
@@ -141,7 +205,7 @@ for video in grade_para_processar:
 
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe. Escribe una oración extensa de 1500 a 1800 palabras sobre "{tema_gerado}" dirigida a {persona_prompt}. 
-    CONTEXTO: Enfoque: "{foco_teologico}". 
+    CONTEXTO: Enfoque: "{foco_teologico}". Estacionalidad: "{contexto_sazonal}".
     REGLAS:
     1. AUDIENCIA GLOBAL: Español Latino neutro. PROHIBIDO mencionar países.
     2. HORARIOS: PROHIBIDO mencionar la hora exacta. Usa SOLO la expresión "{periodo}".
@@ -194,3 +258,4 @@ for video in grade_para_processar:
         proxima_linha_vazia += 1 
         time.sleep(5)
     except Exception as e: print(f"   ❌ Falha ao salvar: {e}")
+
