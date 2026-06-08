@@ -35,33 +35,6 @@ def obter_cascata_de_modelos():
 
 modelos_cascata = obter_cascata_de_modelos()
 
-def calcular_contexto_sazonal(data_alvo):
-    ano = data_alvo.year
-    a = ano % 19; b = ano // 100; c = ano % 100; d = b // 4; e = b % 4; f = (b + 8) // 25; g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30; i = c // 4; k = c % 4; l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451; mes = (h + l - 7 * m + 114) // 31; dia = ((h + l - 7 * m + 114) % 31) + 1
-    pascua = datetime.date(ano, mes, dia)
-
-    miercoles_ceniza = pascua - datetime.timedelta(days=46)
-    viernes_santo = pascua - datetime.timedelta(days=2)
-    pentecostes = pascua + datetime.timedelta(days=49)
-    corpus_christi = pascua + datetime.timedelta(days=60)
-
-    if data_alvo == pascua: return "HOY ES DOMINGO DE RESURRECCIÓN (PASCUA)."
-    if data_alvo == miercoles_ceniza: return "HOY ES MIÉRCOLES DE CENIZA."
-    if data_alvo == viernes_santo: return "HOY ES VIERNES SANTO."
-    if data_alvo == pentecostes: return "HOY ES PENTECOSTÉS."
-    if data_alvo == corpus_christi: return "HOY ES CORPUS CHRISTI."
-    if data_alvo.month == 5 and data_alvo.day == 10: return "HOY ES EL DÍA DE LAS MADRES."
-    if data_alvo.month == 11 and data_alvo.day == 1: return "HOY ES EL DÍA DE TODOS LOS SANTOS (DÍA DE LOS MUERTOS)."
-    if data_alvo.month == 11 and data_alvo.day == 2: return "HOY ES EL DÍA DE LOS FIELES DIFUNTOS (DÍA DE MUERTOS)."
-    if data_alvo.month == 12 and data_alvo.day == 8: return "HOY ES LA INMACULADA CONCEPCIÓN."
-    if data_alvo.month == 12 and data_alvo.day == 12: return "HOY ES EL DÍA DE LA VIRGEN DE GUADALUPE."
-    if data_alvo.month == 12 and data_alvo.day == 25: return "HOY ES NAVIDAD."
-    if data_alvo.month == 12 and data_alvo.day == 31: return "HOY ES NOCHEVIEJA."
-    if data_alvo.month == 1 and data_alvo.day == 1: return "HOY ES AÑO NUEVO."
-    return ""
-
 # ==============================================================================
 # CALENDÁRIO CULTURAL E LITÚRGICO (México / Latino)
 # ==============================================================================
