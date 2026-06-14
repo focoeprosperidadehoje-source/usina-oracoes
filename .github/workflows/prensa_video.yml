@@ -9,6 +9,8 @@ on:
 jobs:
   renderizar_e_publicar:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     timeout-minutes: 45
     strategy:
       matrix:
