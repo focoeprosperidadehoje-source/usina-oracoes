@@ -176,9 +176,8 @@ for index, linha in enumerate(dados, start=2):
                 
                 aba_shorts.update_cell(index, col_status, 'Publicado')
                 break
-            except Exception as e: 
+            except Exception as e:
                 print(f"   ❌ Erro no YouTube (Tentativa {tentativa+1}/3): {e}")
                 time.sleep(15)
-        break 
 
 print("\n🚀 SERVIDOR MATRIX SHORTS DESLIGANDO.")
