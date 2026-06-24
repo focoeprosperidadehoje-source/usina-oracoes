@@ -15,9 +15,9 @@ client = Client(api_key=CHAVE_API, http_options={'api_version': 'v1'})
 def obter_modelo_lite():
     try:
         modelos = client.models.list()
-        lite = [m.name for m in modelos if 'generateContent' in m.supported_generation_methods and 'flash-lite' in m.name]
-        return sorted(lite, reverse=True)[0] if lite else 'gemini-2.5-flash'
-    except: return 'gemini-2.5-flash'
+        lite = [m.name for m in modelos if 'generateContent' in m.supported_generation_methods and ('flash-lite' in m.name or '8b' in m.name)]
+        return sorted(lite, reverse=True)[0] if lite else 'gemini-2.5-flash-lite'
+    except: return 'gemini-2.5-flash-lite'
 
 modelo_usina = obter_modelo_lite()
 ID_PLANILHA = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"

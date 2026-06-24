@@ -26,12 +26,14 @@ def obter_cascata_de_modelos():
     print("📡 Escaneando servidores del Google...")
     try:
         modelos = client.models.list()
-        flash =[m.name for m in modelos if 'generateContent' in m.supported_generation_methods and 'exp' not in m.name and 'flash' in m.name and '8b' not in m.name]
-        pro =[m.name for m in modelos if 'generateContent' in m.supported_generation_methods and 'exp' not in m.name and 'pro' in m.name and 'vision' not in m.name]
+        # Lite/8b = cota generosa no tier gratuito. Prioridade máxima.
+        lite = [m.name for m in modelos if 'generateContent' in m.supported_generation_methods and 'flash' in m.name and ('lite' in m.name or '8b' in m.name)]
+        # Flash regular = fallback de último recurso (cota restrita ~20 RPD)
+        flash = [m.name for m in modelos if 'generateContent' in m.supported_generation_methods and 'flash' in m.name and 'lite' not in m.name and '8b' not in m.name]
+        melhor_lite = sorted(lite, reverse=True)[0] if lite else 'gemini-2.5-flash-lite'
         m_flash = sorted(flash, reverse=True)[0] if flash else 'gemini-2.5-flash'
-        m_pro = sorted(pro, reverse=True)[0] if pro else 'gemini-2.5-pro'
-        return [m_flash, m_flash, m_flash, m_pro, m_pro]
-    except: return ['gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-pro']
+        return [melhor_lite, melhor_lite, melhor_lite, melhor_lite, m_flash]
+    except: return ['gemini-2.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash']
 
 modelos_cascata = obter_cascata_de_modelos()
 
