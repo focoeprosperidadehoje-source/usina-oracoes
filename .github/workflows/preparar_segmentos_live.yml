@@ -9,45 +9,56 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Instalar yt-dlp
-        run: pip install yt-dlp
-
-      - name: Baixar e segmentar vídeos (sem áudio)
-        run: |
-          mkdir -p segmentos
-
-          declare -A VIDEOS
-          VIDEOS[1]="https://www.youtube.com/watch?v=mlrivNntDwI"
-          VIDEOS[2]="https://www.youtube.com/watch?v=vyX5Yziwnys"
-          VIDEOS[3]="https://www.youtube.com/watch?v=1G-RrWIBMl0"
-
-          for i in 1 2 3; do
-            echo "⬇️  Baixando vídeo ${i}/3..."
-            yt-dlp -f "bestvideo[height<=720][ext=mp4]/bestvideo[height<=720]/best[height<=720]" \
-              -o "video_${i}.%(ext)s" "${VIDEOS[$i]}"
-
-            VIDEO=$(ls video_${i}.* 2>/dev/null | head -1)
-            if [ -z "$VIDEO" ]; then
-              echo "❌ Falha ao baixar vídeo ${i}"
-              continue
-            fi
-
-            echo "✂️  Removendo áudio e segmentando $VIDEO em blocos de 10 min..."
-            ffmpeg -y -i "$VIDEO" \
-              -an -c:v copy \
-              -f segment -segment_time 600 -reset_timestamps 1 \
-              "segmentos/live_ES_v${i}_%03d.mp4"
-
-            echo "✅ Vídeo ${i} processado"
-            rm "$VIDEO"
-          done
-
-          echo ""
-          echo "📊 Total de segmentos gerados: $(ls segmentos/*.mp4 2>/dev/null | wc -l)"
-          ls -lh segmentos/
-
       - name: Instalar bibliotecas Python para Drive
         run: pip install google-api-python-client google-auth
+
+      - name: Baixar vídeos do Drive, remover áudio e segmentar
+        env:
+          GOOGLE_CREDENTIALS_ES: ${{ secrets.GOOGLE_CREDENTIALS_ES }}
+        run: |
+          mkdir -p segmentos brutos
+          python3 << 'PYEOF'
+          import os, json, glob, subprocess
+          from google.oauth2.service_account import Credentials
+          from googleapiclient.discovery import build
+
+          PASTA_BRUTOS = "1eUw8mCbH_eIi-nqQ2Qk8BqFfp0fC2pIi"
+
+          creds = Credentials.from_service_account_info(
+              json.loads(os.environ["GOOGLE_CREDENTIALS_ES"]),
+              scopes=["https://www.googleapis.com/auth/drive"]
+          )
+          drive = build("drive", "v3", credentials=creds)
+
+          # Lista vídeos na pasta
+          res = drive.files().list(
+              q=f"'{PASTA_BRUTOS}' in parents and trashed=false and mimeType contains 'video/'",
+              fields="files(id, name)"
+          ).execute()
+          arquivos = res.get("files", [])
+          print(f"📁 {len(arquivos)} vídeo(s) encontrado(s) na pasta do Drive")
+
+          for i, arq in enumerate(arquivos):
+              destino = f"brutos/video_{i+1}.mp4"
+              print(f"⬇️  Baixando [{i+1}/{len(arquivos)}] {arq['name']}...")
+              request = drive.files().get_media(fileId=arq["id"])
+              with open(destino, "wb") as f:
+                  f.write(request.execute())
+              print(f"   ✅ Baixado: {os.path.getsize(destino)/1024/1024:.1f} MB")
+
+              print(f"✂️  Removendo áudio e segmentando em blocos de 10 min...")
+              subprocess.run([
+                  "ffmpeg", "-y", "-i", destino,
+                  "-an", "-c:v", "copy",
+                  "-f", "segment", "-segment_time", "600", "-reset_timestamps", "1",
+                  f"segmentos/live_ES_v{i+1}_%03d.mp4"
+              ], capture_output=True)
+              os.remove(destino)
+              print(f"   ✅ Vídeo {i+1} segmentado")
+
+          segs = glob.glob("segmentos/*.mp4")
+          print(f"\n📊 Total de segmentos gerados: {len(segs)}")
+          PYEOF
 
       - name: Upload de todos os segmentos para o Google Drive
         env:
