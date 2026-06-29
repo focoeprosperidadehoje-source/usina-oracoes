@@ -1,0 +1,96 @@
+name: 🎬 Preparar Segmentos de Vídeo para Live (ES)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  processar_videos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Instalar yt-dlp
+        run: pip install yt-dlp
+
+      - name: Baixar e segmentar vídeos (sem áudio)
+        run: |
+          mkdir -p segmentos
+
+          declare -A VIDEOS
+          VIDEOS[1]="https://www.youtube.com/watch?v=mlrivNntDwI"
+          VIDEOS[2]="https://www.youtube.com/watch?v=vyX5Yziwnys"
+          VIDEOS[3]="https://www.youtube.com/watch?v=1G-RrWIBMl0"
+
+          for i in 1 2 3; do
+            echo "⬇️  Baixando vídeo ${i}/3..."
+            yt-dlp -f "bestvideo[height<=720][ext=mp4]/bestvideo[height<=720]/best[height<=720]" \
+              -o "video_${i}.%(ext)s" "${VIDEOS[$i]}"
+
+            VIDEO=$(ls video_${i}.* 2>/dev/null | head -1)
+            if [ -z "$VIDEO" ]; then
+              echo "❌ Falha ao baixar vídeo ${i}"
+              continue
+            fi
+
+            echo "✂️  Removendo áudio e segmentando $VIDEO em blocos de 10 min..."
+            ffmpeg -y -i "$VIDEO" \
+              -an -c:v copy \
+              -f segment -segment_time 600 -reset_timestamps 1 \
+              "segmentos/live_ES_v${i}_%03d.mp4"
+
+            echo "✅ Vídeo ${i} processado"
+            rm "$VIDEO"
+          done
+
+          echo ""
+          echo "📊 Total de segmentos gerados: $(ls segmentos/*.mp4 2>/dev/null | wc -l)"
+          ls -lh segmentos/
+
+      - name: Instalar bibliotecas Python para Drive
+        run: pip install google-api-python-client google-auth
+
+      - name: Upload de todos os segmentos para o Google Drive
+        env:
+          GOOGLE_CREDENTIALS_ES: ${{ secrets.GOOGLE_CREDENTIALS_ES }}
+        run: |
+          python3 << 'EOF'
+          import os, json, glob
+          from google.oauth2.service_account import Credentials
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+
+          # Pasta: Live — Segmentos Base Vídeo (ES)
+          PASTA_DRIVE = "1RWxOJBZNPxVLZNb0UzMDrlnvSmGXhgjq"
+
+          creds = Credentials.from_service_account_info(
+              json.loads(os.environ["GOOGLE_CREDENTIALS_ES"]),
+              scopes=["https://www.googleapis.com/auth/drive"]
+          )
+          drive = build("drive", "v3", credentials=creds)
+
+          arquivos = sorted(glob.glob("segmentos/*.mp4"))
+          print(f"📤 Fazendo upload de {len(arquivos)} segmentos para o Drive...")
+
+          for i, arquivo in enumerate(arquivos):
+              nome = os.path.basename(arquivo)
+              tamanho_mb = os.path.getsize(arquivo) / 1024 / 1024
+              print(f"  [{i+1}/{len(arquivos)}] {nome} ({tamanho_mb:.1f} MB)...")
+
+              try:
+                  media = MediaFileUpload(
+                      arquivo,
+                      mimetype="video/mp4",
+                      resumable=True,
+                      chunksize=50 * 1024 * 1024  # chunks de 50MB
+                  )
+                  drive.files().create(
+                      body={"name": nome, "parents": [PASTA_DRIVE]},
+                      media_body=media
+                  ).execute()
+                  os.remove(arquivo)
+                  print(f"  ✅ Enviado e deletado localmente")
+              except Exception as e:
+                  print(f"  ❌ Erro ao enviar {nome}: {e}")
+
+          print("🎉 Upload concluído!")
+          EOF
