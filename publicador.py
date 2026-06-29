@@ -226,7 +226,8 @@ for index, linha in enumerate(dados, start=2):
         capitulos = f"\n\n⏱️ Capítulos de la Oración:\n{format_time(0)} Inicio de la Oración\n{format_time(duracao_audio * 0.33)} Súplica y Fe\n{format_time(duracao_audio * 0.66)} Entrega y Gratitud"
         if tem_extensao: capitulos += f"\n{format_time(duracao_audio)} Meditación y Paz Profunda"
             
-        descricao_final = f"{descricao_ia}{capitulos}\n\n{texto_fixo}"
+        bloco_live = "\n\n🔴 MUY PRONTO — EN VIVO 24 HORAS\nPronto estaremos transmitiendo de manera continua las 24 horas del día. Sus súplicas, pedidos de oración y los nombres de sus seres queridos serán mencionados en oración de forma ininterrumpida. ¡Activen la 🔔 campanita para ser los primeros en unirse a este momento de gracia!"
+        descricao_final = f"{descricao_ia}{capitulos}{bloco_live}\n\n{texto_fixo}"
         
         # CORREÇÃO DO FUSO HORÁRIO DO MÉXICO
         try: 

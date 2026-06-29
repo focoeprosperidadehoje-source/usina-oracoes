@@ -55,12 +55,12 @@ if texto_fixo:
                     if not any(t['snippet']['topLevelComment']['snippet'].get('authorChannelId', {}).get('value') == MEU_CANAL_ID for t in comentarios.get('items',[])):
                         
                         if "#shorts" in v_titulo.lower():
-                            comentario_final = "🙏 ¡Que esta oración rápida bendiga tu día! Visita nuestro canal para las oraciones completas y listas de reproducción."
+                            comentario_final = "🙏 ¡Que esta oración bendiga tu día! Visita nuestro canal para las oraciones completas.\n\n🔴 MUY PRONTO — EN VIVO 24 HORAS: Tus pedidos de intercesión y los nombres de tus seres queridos serán mencionados en oración de forma continua. ¡Activa la 🔔 campanita para ser el primero en unirte a este momento de gracia!"
                         else:
-                            link_playlist = "https://www.youtube.com/playlist?list=PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w" 
+                            link_playlist = "https://www.youtube.com/playlist?list=PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w"
                             if "mañana" in v_titulo.lower(): link_playlist = "https://www.youtube.com/playlist?list=PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA"
                             elif "noche" in v_titulo.lower(): link_playlist = "https://www.youtube.com/playlist?list=PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD"
-                            comentario_final = f"{texto_fixo}\n\nSigue orando con nosotros aquí: {link_playlist}"
+                            comentario_final = f"{texto_fixo}\n\nSigue orando con nosotros aquí: {link_playlist}\n\n🔴 MUY PRONTO — EN VIVO 24/7: Sus súplicas y los nombres de sus seres queridos serán elevados en oración de forma ininterrumpida. ¡Activen la 🔔 para no perderse el lanzamiento!"
                             
                         youtube.commentThreads().insert(part="snippet", body={"snippet": {"videoId": v_id, "topLevelComment": {"snippet": {"textOriginal": comentario_final}}}}).execute()
                         print(f"   ✅ Comentário postado no vídeo: {v_titulo[:30]}")
@@ -80,7 +80,7 @@ try:
             nome, texto = top.get('authorDisplayName', 'Hermano(a)'), top.get('textOriginal', '')
             comment_id = top.get('id')
             
-            prompt = f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. Escribe una respuesta CORTA (máx 3 líneas). Si el comentario es negativo o critica imágenes, ACTIVA EL MODO PACIFICADOR: responde con extrema educación, diciendo que respetamos su visión, pero invítalo a unirse en el amor a Dios. Si es positivo, agradece y bendice. Tono cálido. SIN comillas."
+            prompt = f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. Escribe una respuesta CORTA (máx 3 líneas). Si el comentario es negativo o critica imágenes, ACTIVA EL MODO PACIFICADOR: responde con extrema educación, diciendo que respetamos su visión, pero invítalo a unirse en el amor a Dios. Si es positivo, agradece y bendice. Si el fiel menciona nombres de personas enfermas, situaciones de dolor, pedidos de oración o intercesión por alguien, añade organicamente UNA frase mencionando que muy pronto estaremos EN VIVO 24 horas del día y que sus pedidos y los nombres de sus seres queridos serán mencionados en oración de forma continua, invitándolo a activar la campanita para no perderse el lanzamiento. Tono cálido y esperanzador. SIN comillas."
             
             try:
                 resposta = gemini_client.models.generate_content(model=modelo_comunidade, contents=prompt).text.strip()

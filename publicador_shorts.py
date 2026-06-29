@@ -148,7 +148,7 @@ for index, linha in enumerate(dados, start=2):
         tags_limpas = re.sub(r'[^a-zA-Z0-9áéíóúÁÉÍÓÚçÇ ,]', '', tags_str)
         tags_lista = [t.strip()[:30] for t in tags_limpas.split(',') if t.strip()][:15]
         
-        texto_convite = "\n\n🙏 Para la oración completa y profunda, visita nuestro canal. Publicamos oraciones poderosas 4 veces al día.\n\nNuestras Playlists:\nOraciones de la Mañana: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA\nOraciones para Dormir: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD"
+        texto_convite = "\n\n🙏 Para la oración completa y profunda, visita nuestro canal. Publicamos oraciones poderosas 3 veces al día.\n\n🔴 MUY PRONTO — EN VIVO 24 HORAS: Sus pedidos de intercesión y los nombres de sus seres queridos serán mencionados en oración de forma continua e ininterrumpida. ¡Activen la 🔔 campanita para no perderse el lanzamiento!\n\nNuestras Playlists:\nOraciones de la Mañana: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA\nOraciones para Dormir: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD"
         
         # CORREÇÃO DO FUSO HORÁRIO DO MÉXICO
         try: 
