@@ -14,7 +14,7 @@ jobs:
 
       - name: Baixar vídeos do Drive, remover áudio e segmentar
         env:
-          GOOGLE_CREDENTIALS_ES: ${{ secrets.GOOGLE_CREDENTIALS_ES }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         run: |
           mkdir -p segmentos brutos
           python3 << 'PYEOF'
@@ -25,7 +25,7 @@ jobs:
           PASTA_BRUTOS = "1eUw8mCbH_eIi-nqQ2Qk8BqFfp0fC2pIi"
 
           creds = Credentials.from_service_account_info(
-              json.loads(os.environ["GOOGLE_CREDENTIALS_ES"]),
+              json.loads(os.environ["GOOGLE_CREDENTIALS"]),
               scopes=["https://www.googleapis.com/auth/drive"]
           )
           drive = build("drive", "v3", credentials=creds)
@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload de todos os segmentos para o Google Drive
         env:
-          GOOGLE_CREDENTIALS_ES: ${{ secrets.GOOGLE_CREDENTIALS_ES }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         run: |
           python3 << 'EOF'
           import os, json, glob
@@ -74,7 +74,7 @@ jobs:
           PASTA_DRIVE = "1RWxOJBZNPxVLZNb0UzMDrlnvSmGXhgjq"
 
           creds = Credentials.from_service_account_info(
-              json.loads(os.environ["GOOGLE_CREDENTIALS_ES"]),
+              json.loads(os.environ["GOOGLE_CREDENTIALS"]),
               scopes=["https://www.googleapis.com/auth/drive"]
           )
           drive = build("drive", "v3", credentials=creds)
