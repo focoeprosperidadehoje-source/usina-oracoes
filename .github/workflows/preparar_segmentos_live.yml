@@ -9,6 +9,9 @@ jobs:
     timeout-minutes: 120
 
     steps:
+      - name: Instalar FFmpeg
+        run: sudo apt-get install -y ffmpeg
+
       - name: Instalar bibliotecas Python para Drive
         run: pip install google-api-python-client google-auth
 
