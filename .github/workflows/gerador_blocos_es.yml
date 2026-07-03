@@ -1,0 +1,73 @@
+name: 🎬 Gerador de Blocos Base Live ES
+
+on:
+  schedule:
+    - cron: '0 6,12,18 * * *'   # 3×/dia: 6h, 12h, 18h UTC
+  workflow_dispatch:              # disparo manual
+
+jobs:
+  gerar_bloco:
+    name: Gerar bloco H+V (27min) → rsync VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar FFmpeg e SSH
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg rsync openssh-client
+
+      - name: Instalar dependências Python
+        run: |
+          pip install --quiet \
+            google-generativeai \
+            google-api-python-client \
+            google-auth \
+            edge-tts \
+            pytz
+
+      - name: Restaurar cache de assets (imagens + música)
+        id: cache-assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            assets/imagens_h
+            assets/imagens_v
+            assets/musicas_m
+            assets/musicas_n
+          key: assets-es-live-v1
+
+      - name: Gerar bloco (roteiro → TTS → FFmpeg H+V)
+        env:
+          GEMINI_API_KEY:         ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CREDENTIALS_ES:  ${{ secrets.GOOGLE_CREDENTIALS_ES }}
+          YOUTUBE_TOKEN_ES:       ${{ secrets.YOUTUBE_TOKEN_ES }}
+        run: python3 ao_vivo/gerar_bloco_live.py
+
+      - name: Listar blocos gerados
+        run: |
+          echo "Blocos prontos para envio:"
+          ls -lh blocos/
+
+      - name: Configurar SSH para VPS
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY_VPS_ES }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H 80.241.213.27 >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Enviar blocos para VPS via rsync
+        run: |
+          rsync -avz --progress \
+            -e "ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no" \
+            blocos/ \
+            root@80.241.213.27:/root/ao_vivo_es/blocos/
+
+      - name: Remover chave SSH temporária
+        if: always()
+        run: rm -f ~/.ssh/vps_key
