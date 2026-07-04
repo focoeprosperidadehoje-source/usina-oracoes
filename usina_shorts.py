@@ -3,7 +3,9 @@ from google.genai import Client
 from google.oauth2.service_account import Credentials
 import gspread
 
-CHAVE_API = os.environ.get("GEMINI_API_KEY")
+CHAVE_API   = os.environ.get("GEMINI_API_KEY", "")
+CHAVE_API_2 = os.environ.get("GEMINI_API_KEY_2", "")
+CHAVES_GEMINI = [k for k in [CHAVE_API, CHAVE_API_2] if k]
 GOOGLE_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 
 print("🔐 Autenticando no Google Sheets (SHORTS ES)...")
@@ -20,6 +22,20 @@ def obter_modelo_lite():
     except: return 'gemini-2.5-flash-lite'
 
 modelo_usina = obter_modelo_lite()
+
+def _gerar(modelo, prompt):
+    """Tenta cada chave Gemini disponível. Em 429, troca de chave antes de desistir."""
+    for chave in CHAVES_GEMINI:
+        try:
+            c = Client(api_key=chave, http_options={'api_version': 'v1'})
+            return c.models.generate_content(model=modelo, contents=prompt).text
+        except Exception as e:
+            if "429" in str(e) and chave != CHAVES_GEMINI[-1]:
+                print(f"[WARN] 429 na chave ...{chave[-6:]}. Tentando chave 2...")
+                continue
+            raise
+    raise RuntimeError("Todas as chaves Gemini falharam.")
+
 ID_PLANILHA = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"
 
 PILARES = {
@@ -126,7 +142,7 @@ for data_alvo, grade_para_processar in gaps:
         texto_ia = None
         for _ in range(3):
             try:
-                texto_ia = client.models.generate_content(model=modelo_usina, contents=prompt_principal).text
+                texto_ia = _gerar(modelo_usina, prompt_principal)
                 break
             except: time.sleep(10)
 

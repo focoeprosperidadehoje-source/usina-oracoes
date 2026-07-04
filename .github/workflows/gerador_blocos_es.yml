@@ -42,9 +42,10 @@ jobs:
 
       - name: Gerar bloco (roteiro → TTS → FFmpeg H+V)
         env:
-          GEMINI_API_KEY:         ${{ secrets.GEMINI_API_KEY }}
-          GOOGLE_CREDENTIALS_ES:  ${{ secrets.GOOGLE_CREDENTIALS }}
-          YOUTUBE_TOKEN_ES:       ${{ secrets.YOUTUBE_TOKEN_ES }}
+          GEMINI_KEY_LIVE_CONTENT_1: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_1 }}
+          GEMINI_KEY_LIVE_CONTENT_2: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_2 }}
+          GOOGLE_CREDENTIALS_ES:     ${{ secrets.GOOGLE_CREDENTIALS }}
+          YOUTUBE_TOKEN_ES:          ${{ secrets.YOUTUBE_TOKEN_ES }}
         run: python3 ao_vivo/gerar_bloco_live.py
 
       - name: Listar blocos gerados

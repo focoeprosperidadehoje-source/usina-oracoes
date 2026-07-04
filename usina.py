@@ -11,7 +11,9 @@ import gspread
 # ==============================================================================
 # 1. PUXANDO AS CHAVES DO COFRE DO GITHUB
 # ==============================================================================
-CHAVE_API = os.environ.get("GEMINI_API_KEY")
+CHAVE_API   = os.environ.get("GEMINI_API_KEY", "")
+CHAVE_API_2 = os.environ.get("GEMINI_API_KEY_2", "")
+CHAVES_GEMINI = [k for k in [CHAVE_API, CHAVE_API_2] if k]
 GOOGLE_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 
 print("🔐 Autenticando no Google Sheets via Service Account...")
@@ -36,6 +38,19 @@ def obter_cascata_de_modelos():
     except: return ['gemini-2.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash']
 
 modelos_cascata = obter_cascata_de_modelos()
+
+def _gerar(modelo, prompt):
+    """Tenta cada chave Gemini disponível. Em 429, troca de chave antes de desistir."""
+    for chave in CHAVES_GEMINI:
+        try:
+            c = Client(api_key=chave, http_options={'api_version': 'v1'})
+            return c.models.generate_content(model=modelo, contents=prompt).text
+        except Exception as e:
+            if "429" in str(e) and chave != CHAVES_GEMINI[-1]:
+                print(f"[WARN] 429 na chave ...{chave[-6:]}. Tentando chave 2...")
+                continue
+            raise
+    raise RuntimeError("Todas as chaves Gemini falharam.")
 
 # ==============================================================================
 # CALENDÁRIO CULTURAL E LITÚRGICO (México / Latino)
@@ -194,7 +209,7 @@ for video in grade_para_processar:
     tema_gerado = None
     for i in range(5):
         try:
-            tema_gerado = client.models.generate_content(model=modelos_cascata[i], contents=prompt_tema).text.replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip()
+            tema_gerado = _gerar(modelos_cascata[i], prompt_tema).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip()
             break 
         except: time.sleep(esperas_exponenciais[i])
             
@@ -236,7 +251,7 @@ for video in grade_para_processar:
     texto_ia = None
     for i in range(5): 
         try:
-            texto_ia = client.models.generate_content(model=modelos_cascata[i], contents=prompt_principal).text
+            texto_ia = _gerar(modelos_cascata[i], prompt_principal)
             break 
         except: time.sleep(esperas_exponenciais[i])
             

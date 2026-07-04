@@ -7,7 +7,9 @@ from google.genai import Client
 
 GOOGLE_JSON = os.environ.get("GOOGLE_CREDENTIALS")
 YT_TOKEN_JSON = os.environ.get("YOUTUBE_TOKEN_ES")
-CHAVE_API_GEMINI = os.environ.get("GEMINI_API_KEY")
+CHAVE_API_GEMINI   = os.environ.get("GEMINI_API_KEY", "")
+CHAVE_API_GEMINI_2 = os.environ.get("GEMINI_API_KEY_2", "")
+CHAVES_GEMINI = [k for k in [CHAVE_API_GEMINI, CHAVE_API_GEMINI_2] if k]
 
 creds_sheets = Credentials.from_service_account_info(json.loads(GOOGLE_JSON), scopes=['https://www.googleapis.com/auth/spreadsheets'])
 gc = gspread.authorize(creds_sheets)
@@ -18,7 +20,20 @@ except: configs =[]
 creds_yt = YTCredentials.from_authorized_user_info(json.loads(YT_TOKEN_JSON))
 if creds_yt and creds_yt.expired and creds_yt.refresh_token: creds_yt.refresh(Request())
 youtube = build('youtube', 'v3', credentials=creds_yt)
-gemini_client = Client(api_key=CHAVE_API_GEMINI, http_options={'api_version': 'v1'})
+gemini_client = Client(api_key=CHAVES_GEMINI[0], http_options={'api_version': 'v1'})
+
+def _gerar_comunidade(prompt):
+    """Tenta cada chave Gemini disponível. Em 429, troca de chave antes de desistir."""
+    for chave in CHAVES_GEMINI:
+        try:
+            c = Client(api_key=chave, http_options={'api_version': 'v1'})
+            return c.models.generate_content(model=modelo_comunidade, contents=prompt).text.strip()
+        except Exception as e:
+            if "429" in str(e) and chave != CHAVES_GEMINI[-1]:
+                print(f"[WARN] 429 na chave ...{chave[-6:]}. Tentando chave 2...")
+                continue
+            raise
+    raise RuntimeError("Todas as chaves Gemini falharam.")
 
 def obter_modelo_lite():
     try:
@@ -83,7 +98,7 @@ try:
             prompt = f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. Escribe una respuesta CORTA (máx 3 líneas). Si el comentario es negativo o critica imágenes, ACTIVA EL MODO PACIFICADOR: responde con extrema educación, diciendo que respetamos su visión, pero invítalo a unirse en el amor a Dios. Si es positivo, agradece y bendice. Si el fiel menciona nombres de personas enfermas, situaciones de dolor, pedidos de oración o intercesión por alguien, añade organicamente UNA frase mencionando que muy pronto estaremos EN VIVO 24 horas del día y que sus pedidos y los nombres de sus seres queridos serán mencionados en oración de forma continua, invitándolo a activar la campanita para no perderse el lanzamiento. Tono cálido y esperanzador. SIN comillas."
             
             try:
-                resposta = gemini_client.models.generate_content(model=modelo_comunidade, contents=prompt).text.strip()
+                resposta = _gerar_comunidade(prompt)
                 youtube.comments().insert(part="snippet", body={"snippet": {"parentId": thread['id'], "textOriginal": resposta}}).execute()
                 print(f"   ✅ Respondido a {nome}")
                 

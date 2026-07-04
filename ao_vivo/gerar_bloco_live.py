@@ -49,7 +49,10 @@ CANAL_ID     = "UCyPGsztvMnUhDeoI_6H4bsA"
 DURACAO_BLOCO_SEG = 27 * 60   # 1620s
 
 MODELOS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
-CHAVES  = [k for k in [os.environ.get("GEMINI_API_KEY", "")] if k]
+CHAVES  = [k for k in [
+    os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CONTENT_2", ""),
+] if k]
 
 # Pastas de assets (cache do GitHub Actions)
 DIR_ASSETS    = Path("assets")

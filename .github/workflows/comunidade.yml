@@ -18,7 +18,8 @@ jobs:
           python-version: '3'
       - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 gspread google-genai
       - env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           YOUTUBE_TOKEN_ES: ${{ secrets.YOUTUBE_TOKEN_ES }}
         run: python comunidade.py
