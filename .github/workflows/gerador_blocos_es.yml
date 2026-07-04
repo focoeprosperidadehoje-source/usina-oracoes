@@ -58,9 +58,14 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY_VPS_ES }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/vps_key
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
           ssh-keyscan -H 80.241.213.27 >> ~/.ssh/known_hosts 2>/dev/null
+          echo "=== Diagnóstico SSH key ==="
+          head -1 ~/.ssh/vps_key
+          wc -l ~/.ssh/vps_key
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            root@80.241.213.27 "echo SSH_TEST_OK && hostname" || true
 
       - name: Enviar blocos para VPS via rsync
         run: |
