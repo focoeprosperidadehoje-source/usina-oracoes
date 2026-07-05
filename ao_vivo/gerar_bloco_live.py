@@ -50,7 +50,7 @@ DURACAO_BLOCO_SEG = 27 * 60   # 1620s
 
 MODELOS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
 # Modelos para geração de texto longo (3200+ palavras) — full model primeiro
-MODELOS_LONGO = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+MODELOS_LONGO = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]  # lite primeiro; flash só como fallback
 CHAVES  = [k for k in [
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_2", ""),
@@ -102,12 +102,20 @@ def rodar_gemini(prompt: str) -> str:
 
 
 def rodar_gemini_longo(prompt: str) -> str:
-    """Gemini otimizado para output longo (3200+ palavras): usa gemini-2.5-flash primeiro."""
+    """Gemini otimizado para output longo (3200+ palavras).
+    Usa max_output_tokens=8192 para evitar truncamento silencioso do flash-lite.
+    Lite primeiro (econômico); flash completo só como fallback.
+    """
+    from google.genai import types as genai_types
     for chave in CHAVES:
         for modelo in MODELOS_LONGO:
             try:
                 client = genai.Client(api_key=chave)
-                resp = client.models.generate_content(model=modelo, contents=prompt)
+                resp = client.models.generate_content(
+                    model=modelo,
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(max_output_tokens=8192),
+                )
                 return resp.text.strip()
             except Exception as e:
                 msg = str(e)
