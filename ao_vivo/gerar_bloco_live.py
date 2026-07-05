@@ -49,6 +49,8 @@ CANAL_ID     = "UCyPGsztvMnUhDeoI_6H4bsA"
 DURACAO_BLOCO_SEG = 27 * 60   # 1620s
 
 MODELOS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
+# Modelos para geração de texto longo (3200+ palavras) — full model primeiro
+MODELOS_LONGO = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
 CHAVES  = [k for k in [
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_2", ""),
@@ -97,6 +99,20 @@ def rodar_gemini(prompt: str) -> str:
                 msg = str(e)
                 print(f"[WARN] Gemini {modelo} [{chave[-6:]}]: {msg[:100]}")
     raise RuntimeError("Todos os modelos Gemini falharam.")
+
+
+def rodar_gemini_longo(prompt: str) -> str:
+    """Gemini otimizado para output longo (3200+ palavras): usa gemini-2.5-flash primeiro."""
+    for chave in CHAVES:
+        for modelo in MODELOS_LONGO:
+            try:
+                client = genai.Client(api_key=chave)
+                resp = client.models.generate_content(model=modelo, contents=prompt)
+                return resp.text.strip()
+            except Exception as e:
+                msg = str(e)
+                print(f"[WARN] Gemini {modelo} [{chave[-6:]}]: {msg[:100]}")
+    raise RuntimeError("Todos os modelos Gemini (longo) falharam.")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -355,7 +371,7 @@ REGLAS ABSOLUTAS:
 - Persona: La Morenita (no "Virgen de Guadalupe" como nombre principal)
 """
 
-    texto = rodar_gemini(prompt)
+    texto = rodar_gemini_longo(prompt)
     texto = re.sub(r'\*+', '', texto)
     texto = re.sub(r'#{1,6}\s+', '', texto)
     texto = re.sub(r'^\s*[-•]\s+', '', texto, flags=re.MULTILINE)
@@ -488,11 +504,17 @@ def main():
     ts = agora.strftime("%Y%m%d_%H")
     num_bloco = int(agora.strftime("%j")) * 3 + (agora.hour // 8)  # índice sequencial único
 
-    roteiro = gerar_roteiro(contexto, comentarios, num_bloco)
-    palavras = len(roteiro.split())
-    print(f"Roteiro: {palavras} palavras")
+    roteiro = None
+    palavras = 0
+    for tentativa in range(3):
+        roteiro = gerar_roteiro(contexto, comentarios, num_bloco)
+        palavras = len(roteiro.split())
+        print(f"Roteiro tentativa {tentativa+1}/3: {palavras} palavras")
+        if palavras >= 2000:
+            break
+        print(f"[WARN] Roteiro curto — retentando...")
     if palavras < 2000:
-        msg = f"Roteiro muito curto: {palavras} palavras (mínimo 2000). Gemini retornou texto insuficiente."
+        msg = f"Roteiro muito curto após 3 tentativas: {palavras} palavras (mínimo 2000)."
         print(f"[ERRO] {msg}")
         _gh_error(msg)
         sys.exit(1)
