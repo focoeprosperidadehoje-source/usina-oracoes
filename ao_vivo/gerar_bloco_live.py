@@ -87,8 +87,8 @@ PILARES = {
 # ═══════════════════════════════════════════════════════════════════════
 
 def rodar_gemini(prompt: str) -> str:
-    for modelo in MODELOS:
-        for chave in CHAVES:
+    for chave in CHAVES:
+        for modelo in MODELOS:
             try:
                 client = genai.Client(api_key=chave)
                 resp = client.models.generate_content(model=modelo, contents=prompt)
@@ -96,8 +96,6 @@ def rodar_gemini(prompt: str) -> str:
             except Exception as e:
                 msg = str(e)
                 print(f"[WARN] Gemini {modelo} [{chave[-6:]}]: {msg[:100]}")
-                if "503" in msg or "unavailable" in msg.lower():
-                    break
     raise RuntimeError("Todos os modelos Gemini falharam.")
 
 
