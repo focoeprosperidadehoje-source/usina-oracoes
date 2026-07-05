@@ -52,6 +52,7 @@ MODELOS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
 CHAVES  = [k for k in [
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_2", ""),
+    os.environ.get("GEMINI_API_KEY", ""),   # fallback — chave principal
 ] if k]
 
 # Pastas de assets (cache do GitHub Actions)
@@ -493,7 +494,9 @@ def main():
     palavras = len(roteiro.split())
     print(f"Roteiro: {palavras} palavras")
     if palavras < 2000:
-        print(f"[ERRO] Roteiro muito curto ({palavras} palavras). Abortando.")
+        msg = f"Roteiro muito curto: {palavras} palavras (mínimo 2000). Gemini retornou texto insuficiente."
+        print(f"[ERRO] {msg}")
+        _gh_error(msg)
         sys.exit(1)
 
     # 4. TTS
@@ -519,5 +522,19 @@ def main():
     print(f"   V: {bloco_v.name} ({tam_v} MB)")
 
 
+def _gh_error(msg: str):
+    """Emite anotação ::error:: visível na página pública do GitHub Actions."""
+    # Limpa newlines para caber em uma linha de anotação
+    linha = msg.replace("\n", " | ").replace("\r", "")[:500]
+    print(f"::error::{linha}", flush=True)
+
+
 if __name__ == "__main__":
-    main()
+    import traceback
+    try:
+        main()
+    except Exception as exc:
+        tb = traceback.format_exc()
+        _gh_error(f"FALHA gerar_bloco_live.py: {exc} | {tb}")
+        print(tb, flush=True)
+        sys.exit(1)
