@@ -341,11 +341,19 @@ def _proximo_bloco() -> tuple[Path, Path]:
     return h, v
 
 def _resetar_playlist(path: Path, primeiro: Path):
-    path.write_text(f"ffconcat version 1.0\nfile '{primeiro}'\n")
+    try:
+        rel = primeiro.relative_to(path.parent)
+    except ValueError:
+        rel = primeiro
+    path.write_text(f"ffconcat version 1.0\nfile '{rel}'\n")
 
 def _append_playlist(path: Path, arquivo: Path):
+    try:
+        rel_a = arquivo.relative_to(path.parent)
+    except ValueError:
+        rel_a = arquivo
     with open(path, "a") as f:
-        f.write(f"file '{arquivo}'\n")
+        f.write(f"file '{rel_a}'\n")
     log.info(f"  playlist {path.name} ← {arquivo.name}")
 
 def _limpar_suplicas_antigas(max_age_h: int = 3):
@@ -633,7 +641,7 @@ def _cmd_stream(playlist: Path, sk: str, ing: str, res: str, bitrate: str) -> li
 
     return [
         "ffmpeg", "-re",
-        "-f", "concat", "-safe", "0", "-live_start_index", "0",
+        "-f", "concat", "-safe", "0",
         "-i", str(playlist),
         "-vf", clock,
         "-c:v", "libx264", "-preset", "veryfast",
@@ -910,11 +918,4 @@ def main():
         _ev_suplica_gerar.set()
         with _lock:
             _matar_proc(_estado.get("proc_h"), "H")
-            _matar_proc(_estado.get("proc_v"), "V")
-        for t in threads:
-            t.join(timeout=15)
-        log.info("ao_vivo.py encerrado.")
-
-
-if __name__ == "__main__":
-    main()
+            _mat
