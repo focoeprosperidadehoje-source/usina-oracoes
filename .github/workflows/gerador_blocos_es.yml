@@ -31,7 +31,7 @@ jobs:
 
       - name: Restaurar cache de assets (imagens + música)
         id: cache-assets
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             assets/imagens_h
