@@ -361,6 +361,31 @@ def _proximo_bloco() -> tuple[Path, Path]:
     log.info(f"Próximo bloco: {h.name}")
     return h, v
 
+def _construir_playlist_ciclo(blocos: list, duracao_seg: int, tipo: str) -> Path:
+    """Cria playlist ffconcat em BASE_DIR cobrindo duracao_seg com blocos em loop.
+    tipo: 'h' ou 'v'. Entradas relativas a BASE_DIR (onde FFmpeg é executado).
+    FFmpeg concat + ffconcat header: paths relativos à pasta do arquivo playlist."""
+    playlist = BASE_DIR / f"_playlist_{tipo}.txt"
+    linhas   = ["ffconcat version 1.0"]
+    total    = 0
+    idx      = 0
+    margem   = 1800  # 30 min extra de segurança
+    while total < duracao_seg + margem:
+        h_path, v_path = blocos[idx % len(blocos)]
+        path = h_path if tipo == "h" else v_path
+        try:
+            rel = path.relative_to(BASE_DIR)
+        except ValueError:
+            rel = path
+        linhas.append(f"file '{rel}'")
+        total += 1680  # ~28 min por bloco (estimativa conservadora)
+        idx   += 1
+    playlist.write_text("\n".join(linhas))
+    n = len(linhas) - 1
+    log.info(f"Playlist {tipo.upper()}: {n} entradas, ~{total // 60}min estimados → {playlist.name}")
+    return playlist
+
+
 def _resetar_playlist(path: Path, primeiro: Path):
     try:
         rel = primeiro.relative_to(path.parent)
@@ -657,10 +682,10 @@ def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> lis
     font  = _detectar_fonte()
     fsize = "52" if res.startswith("1920") else "38"
     clock = (
-        f"drawtext=fontfile={font}:text='%{{localtime\\:%H\\:%M\\:%S}}':"
+        f"drawtext=fontfile={font}:text='%H\\:%M\\:%S':strftime=1:"
         f"fontcolor=white:fontsize={fsize}:x=w-tw-30:y=30:"
         f"shadowcolor=black:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=6"
-    ) if font else "drawtext=text='%{localtime\\:%H\\:%M\\:%S}':fontcolor=white:fontsize=48:x=w-tw-30:y=30"
+    ) if font else "drawtext=text='%H\\:%M\\:%S':strftime=1:fontcolor=white:fontsize=48:x=w-tw-30:y=30"
 
     return [
         "ffmpeg", "-re",
@@ -685,6 +710,45 @@ def _iniciar_proc(arquivo: Path, sk: str, ing: str, res: str, bitrate: str, nome
     p._stderr_f = stderr_f  # manter referência para fechar ao encerrar
     log.info(f"FFmpeg {nome} iniciado PID {p.pid} → {log_ffmpeg.name}")
     return p
+
+def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
+                            res: str, bitrate: str, nome: str) -> subprocess.Popen:
+    """Lança FFmpeg com playlist ffconcat — transições sem gap entre blocos.
+    cwd=BASE_DIR para que os paths relativos da playlist sejam resolvidos corretamente."""
+    font  = _detectar_fonte()
+    fsize = "52" if res.startswith("1920") else "38"
+    clock = (
+        f"drawtext=fontfile={font}:text='%H\\:%M\\:%S':strftime=1:"
+        f"fontcolor=white:fontsize={fsize}:x=w-tw-30:y=30:"
+        f"shadowcolor=black:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=6"
+    ) if font else "drawtext=text='%H\\:%M\\:%S':strftime=1:fontcolor=white:fontsize=48:x=w-tw-30:y=30"
+
+    try:
+        rel_playlist = str(playlist.relative_to(BASE_DIR))
+    except ValueError:
+        rel_playlist = str(playlist)
+
+    cmd = [
+        "ffmpeg", "-re",
+        "-f", "concat", "-safe", "0",
+        "-i", rel_playlist,
+        "-vf", clock,
+        "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+        "-pix_fmt", "yuv420p",
+        "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
+        "-g", "60", "-keyint_min", "60",
+        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+        "-f", "flv", f"{ing}/{sk}",
+    ]
+    log_ffmpeg = BASE_DIR / f"ffmpeg_{nome.lower()}.log"
+    stderr_f   = open(log_ffmpeg, "wb", buffering=0)
+    p = subprocess.Popen(cmd, cwd=str(BASE_DIR), stdout=subprocess.DEVNULL, stderr=stderr_f)
+    p._stderr_f = stderr_f
+    log.info(f"FFmpeg {nome} (playlist) PID {p.pid} → {log_ffmpeg.name}")
+    with _lock:
+        _estado[f"proc_{nome.lower()}"] = p
+    return p
+
 
 def _matar_proc(proc: subprocess.Popen | None, nome: str):
     if not proc or proc.poll() is not None:
@@ -960,13 +1024,54 @@ def loop_transmissor():
 
         while not _ev_parar.is_set():
             ciclo += 1
-            log.info(f"Transmissor — iniciando ciclo {ciclo} de 6h")
+            log.info(f"Transmissor — ciclo {ciclo} de 6h (playlist contínua — sem gap entre blocos)")
             proc_h = proc_v = None
+
+            # Aguardar blocos disponíveis
+            blocos = listar_blocos()
+            while not blocos and not _ev_parar.is_set():
+                log.warning("Sem blocos disponíveis — aguardando 60s...")
+                _ev_parar.wait(timeout=60)
+                blocos = listar_blocos()
+            if _ev_parar.is_set():
+                break
+
+            # Construir playlists cobrindo 6h (blocos repetidos em loop se necessário)
+            playlist_h = _construir_playlist_ciclo(blocos, DURACAO_CICLO_SEG, "h")
+            proc_h     = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
+                                                 "1920x1080", "3500k", "H")
+            playlist_v = None
+            if sk_v_ativo:
+                playlist_v = _construir_playlist_ciclo(blocos, DURACAO_CICLO_SEG, "v")
+                proc_v     = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
+                                                     "1080x1920", "2500k", "V")
+
+            # Monitorar ciclo de 6h sem reiniciar FFmpeg entre blocos
+            ciclo_start = time.time()
             try:
-                proc_h, proc_v = _loop_blocos(proc_h, proc_v,
-                                               STREAM_KEY_H, sk_v_ativo,
-                                               INGEST_URL, INGEST_URL,
-                                               max_seg=DURACAO_CICLO_SEG)
+                while not _ev_parar.is_set():
+                    elapsed = time.time() - ciclo_start
+                    if elapsed >= DURACAO_CICLO_SEG:
+                        log.info(f"Ciclo {ciclo}: 6h completas — encerrando FFmpeg para salvar VOD.")
+                        break
+
+                    if proc_h.poll() is not None:
+                        # FFmpeg encerrou antes do fim (crash ou fim da playlist)
+                        log.warning("FFmpeg H encerrou antes do fim do ciclo — recriando playlist e reiniciando")
+                        blocos_atuais = listar_blocos()
+                        if blocos_atuais:
+                            resto = max(DURACAO_CICLO_SEG - int(elapsed), 1800)
+                            playlist_h = _construir_playlist_ciclo(blocos_atuais, resto, "h")
+                        proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
+                                                         "1920x1080", "3500k", "H")
+
+                    if proc_v and proc_v.poll() is not None:
+                        log.warning("FFmpeg V encerrou — recriando")
+                        if sk_v_ativo and playlist_v:
+                            proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
+                                                             "1080x1920", "2500k", "V")
+
+                    _ev_parar.wait(timeout=10)
             finally:
                 _matar_proc(proc_h, "H")
                 _matar_proc(proc_v, "V")
