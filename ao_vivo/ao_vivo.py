@@ -682,10 +682,10 @@ def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> lis
     font  = _detectar_fonte()
     fsize = "52" if res.startswith("1920") else "38"
     clock = (
-        f"drawtext=fontfile={font}:text='%H\\:%M\\:%S':strftime=1:"
+        f"drawtext=fontfile={font}:text='%{{localtime\\:%H\\:%M\\:%S}}':"
         f"fontcolor=white:fontsize={fsize}:x=w-tw-30:y=30:"
         f"shadowcolor=black:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=6"
-    ) if font else "drawtext=text='%H\\:%M\\:%S':strftime=1:fontcolor=white:fontsize=48:x=w-tw-30:y=30"
+    ) if font else "drawtext=text='%{localtime\\:%H\\:%M\\:%S}':fontcolor=white:fontsize=48:x=w-tw-30:y=30"
 
     return [
         "ffmpeg", "-re",
@@ -718,10 +718,10 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
     font  = _detectar_fonte()
     fsize = "52" if res.startswith("1920") else "38"
     clock = (
-        f"drawtext=fontfile={font}:text='%H\\:%M\\:%S':strftime=1:"
+        f"drawtext=fontfile={font}:text='%{{localtime\\:%H\\:%M\\:%S}}':"
         f"fontcolor=white:fontsize={fsize}:x=w-tw-30:y=30:"
         f"shadowcolor=black:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=6"
-    ) if font else "drawtext=text='%H\\:%M\\:%S':strftime=1:fontcolor=white:fontsize=48:x=w-tw-30:y=30"
+    ) if font else "drawtext=text='%{localtime\\:%H\\:%M\\:%S}':fontcolor=white:fontsize=48:x=w-tw-30:y=30"
 
     try:
         rel_playlist = str(playlist.relative_to(BASE_DIR))

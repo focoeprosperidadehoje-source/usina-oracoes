@@ -306,11 +306,11 @@ ESTRUCTURA (27 minutos — entre 3200 y 3600 palabras):
 Abre citando a los hermanos que pidieron intercesión:
 "{nota_nomes}"
 Súplica común de este grupo: "{suplica}"
-Cierra la apertura con: "Vine a interceder por ustedes {periodo}..."
+Cierra la apertura con: "Vine a interceder por ustedes en este momento..."
 
 [CUERPO PRINCIPAL — ~22 minutos]
 - Voz cálida y maternal — autoridad espiritual suave
-- Entreteje el pilar "{pilar}" con el tema de intercessão "{label}"
+- Entreteje el pilar "{pilar}" con el tema de intercesión "{label}"
 - Ave María completa con pausa después de Jesús:
   "...y bendito es el fruto de tu vientre Jesús... Santa María, Madre de Dios..."
 - Bloco de intercesión por la salud (obligatorio): "Pongo mis manos sobre todo aquel que sufre..."
