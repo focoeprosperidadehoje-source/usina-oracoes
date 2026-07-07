@@ -64,13 +64,25 @@ CANAL_ID       = os.environ.get("CANAL_ID_ES", "UCyPGsztvMnUhDeoI_6H4bsA")
 PLAYLIST_LIVES = os.environ.get("PLAYLIST_ID_LIVES_ES", "PLUDymPRcCipI")
 FUSO           = pytz.timezone(os.environ.get("FUSO", "America/Mexico_City"))
 
+# ── Modo Permanente ──────────────────────────────────────────────────────
+# Se STREAM_KEY_H e STREAM_KEY_V estiverem no .env, o robô transmite
+# diretamente sem criar broadcasts via API (zero consumo de cota diária).
+# Configure UMA VEZ no YouTube Studio e salve no .env do VPS.
+STREAM_KEY_H   = os.environ.get("STREAM_KEY_H", "")
+STREAM_KEY_V   = os.environ.get("STREAM_KEY_V", "")
+INGEST_URL     = os.environ.get("INGEST_URL", "rtmp://a.rtmp.youtube.com/live2")
+BROADCAST_ID_H = os.environ.get("BROADCAST_ID_H", "")  # para leitura do chat
+BROADCAST_ID_V = os.environ.get("BROADCAST_ID_V", "")
+MODO_PERMANENTE = bool(STREAM_KEY_H)   # True = sem chamadas API (V opcional)
+
 BASE_DIR       = Path("/root/ao_vivo_es")
-DIR_BLOCOS     = BASE_DIR / "blocos"          # blocos base chegam do GitHub Actions via rsync
-DIR_SUPLICAS   = BASE_DIR / "suplicas"        # segmentos curtos gerados no VPS
-DIR_INSUMOS_H  = BASE_DIR / "insumos_h"      # imagens Guadalupe 16:9 (para súplicas H)
-DIR_INSUMOS_V  = BASE_DIR / "insumos_v"      # imagens Guadalupe 9:16 (para súplicas V)
-DIR_MUSICAS_M  = BASE_DIR / "musicas" / "manha"
-DIR_MUSICAS_N  = BASE_DIR / "musicas" / "noite"
+DIR_BLOCOS      = BASE_DIR / "blocos"          # áudio mp3 chega do GitHub Actions via rsync; H mp4 gerado aqui
+DIR_SUPLICAS    = BASE_DIR / "suplicas"        # segmentos curtos gerados no VPS
+DIR_INSUMOS_H   = BASE_DIR / "insumos_h"      # imagens Guadalupe 16:9 (para súplicas H)
+DIR_INSUMOS_V   = BASE_DIR / "insumos_v"      # imagens Guadalupe 9:16 (para súplicas V)
+DIR_MUSICAS_M   = BASE_DIR / "musicas" / "manha"
+DIR_MUSICAS_N   = BASE_DIR / "musicas" / "noite"
+DIR_VIDEOS_BASE = BASE_DIR / "videos_base"    # cortes de 10min dos vídeos longos (base visual da live)
 
 PLAYLIST_H_FILE = BASE_DIR / "playlist_h.txt"
 PLAYLIST_V_FILE = BASE_DIR / "playlist_v.txt"
@@ -320,14 +332,23 @@ def garantir_assets_vps():
 # BLOCOS — ROTAÇÃO E PLAYLIST
 # ═══════════════════════════════════════════════════════════════════════
 
+MIN_BLOCO_BYTES = 10 * 1024 * 1024  # 10 MB — blocos reais têm no mínimo ~30 MB
+
 def listar_blocos() -> list[tuple[Path, Path]]:
-    """Lista pares (h, v) disponíveis em DIR_BLOCOS, ordenados por nome."""
+    """Lista pares (h, v) disponíveis em DIR_BLOCOS, ordenados por nome.
+    V é opcional — se não existir, retorna H como fallback (V stream desativado).
+    Ignora arquivos menores que MIN_BLOCO_BYTES (concat .txt renomeados ou corrompidos)."""
     hs = sorted(DIR_BLOCOS.glob("*_h.mp4"))
     resultado = []
     for h in hs:
+        try:
+            if h.stat().st_size < MIN_BLOCO_BYTES:
+                log.debug(f"Bloco ignorado (muito pequeno): {h.name} ({h.stat().st_size} bytes)")
+                continue
+        except OSError:
+            continue
         v = Path(str(h).replace("_h.mp4", "_v.mp4"))
-        if v.exists():
-            resultado.append((h, v))
+        resultado.append((h, v if v.exists() else h))
     return resultado
 
 def _proximo_bloco() -> tuple[Path, Path]:
@@ -630,7 +651,9 @@ def _detectar_fonte() -> str:
             return f
     return ""
 
-def _cmd_stream(playlist: Path, sk: str, ing: str, res: str, bitrate: str) -> list[str]:
+def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> list[str]:
+    """Comando FFmpeg com stream_loop -1: repete o bloco indefinidamente.
+    Elimina freeze de transição — o código reinicia o processo para trocar de bloco."""
     font  = _detectar_fonte()
     fsize = "52" if res.startswith("1920") else "38"
     clock = (
@@ -641,20 +664,26 @@ def _cmd_stream(playlist: Path, sk: str, ing: str, res: str, bitrate: str) -> li
 
     return [
         "ffmpeg", "-re",
-        "-f", "concat", "-safe", "0",
-        "-i", str(playlist),
+        "-i", str(arquivo),
         "-vf", clock,
-        "-c:v", "libx264", "-preset", "veryfast",
+        "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+        "-pix_fmt", "yuv420p",
         "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
         "-g", "60", "-keyint_min", "60",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-f", "flv", f"{ing}/{sk}",
     ]
 
-def _iniciar_proc(playlist: Path, sk: str, ing: str, res: str, bitrate: str, nome: str) -> subprocess.Popen:
-    cmd = _cmd_stream(playlist, sk, ing, res, bitrate)
-    p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    log.info(f"FFmpeg {nome} iniciado PID {p.pid}")
+def _iniciar_proc(arquivo: Path, sk: str, ing: str, res: str, bitrate: str, nome: str) -> subprocess.Popen:
+    cmd = _cmd_stream(arquivo, sk, ing, res, bitrate)
+    # CRÍTICO: stderr=PIPE enche o buffer de 64KB em ~20-40s → FFmpeg bloqueia no write
+    # e para de enviar RTMP sem crashar (poll() continua None → crash detection nunca dispara)
+    # Solução: redirecionar stderr para arquivo de log (sem limite de buffer)
+    log_ffmpeg = BASE_DIR / f"ffmpeg_{nome.lower()}.log"
+    stderr_f = open(log_ffmpeg, "wb", buffering=0)
+    p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=stderr_f)
+    p._stderr_f = stderr_f  # manter referência para fechar ao encerrar
+    log.info(f"FFmpeg {nome} iniciado PID {p.pid} → {log_ffmpeg.name}")
     return p
 
 def _matar_proc(proc: subprocess.Popen | None, nome: str):
@@ -665,6 +694,10 @@ def _matar_proc(proc: subprocess.Popen | None, nome: str):
         proc.wait(timeout=12)
     except subprocess.TimeoutExpired:
         proc.kill()
+    try:
+        f = getattr(proc, "_stderr_f", None)
+        if f: f.close()
+    except Exception: pass
     log.info(f"FFmpeg {nome} encerrado.")
 
 
@@ -728,12 +761,230 @@ def loop_suplicas():
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# THREAD: ASSEMBLER — combina audio_*.mp3 (GitHub Actions) + videos_base/
+# ═══════════════════════════════════════════════════════════════════════
+
+def _montar_bloco_h(audio: Path) -> Path:
+    """Monta bloco H: cortes de videos_base/ (mudo) + áudio de oração da Morenita."""
+    ts     = audio.stem.replace("audio_", "")  # YYYYMMDD_HH
+    saida  = DIR_BLOCOS / f"bloco_{ts}_h.mp4"
+    if saida.exists():
+        return saida
+
+    videos = sorted(DIR_VIDEOS_BASE.glob("*.mp4"))
+    if not videos:
+        raise RuntimeError(f"Sem vídeos em {DIR_VIDEOS_BASE} — coloque os cortes lá.")
+
+    # Duração estimada pelo tamanho do mp3 (~128kbps → ~1 min por 960KB)
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
+            capture_output=True, text=True, timeout=15
+        )
+        dur = max(int(float(r.stdout.strip())), 1200)
+    except Exception:
+        dur = DURACAO_BLOCO_SEG
+
+    # Concat embaralhado dos vídeos base para cobrir dur + margem
+    vids_shuffled = list(videos)
+    random.shuffle(vids_shuffled)
+    concat_file = saida.with_suffix(".vconcat.txt")
+    linhas = ["ffconcat version 1.0"]
+    total  = 0
+    idx    = 0
+    while total < dur + 300:
+        linhas.append(f"file '{vids_shuffled[idx % len(vids_shuffled)]}'")
+        total += 600   # ~10 min por clip (estimativa conservadora)
+        idx   += 1
+    concat_file.write_text("\n".join(linhas))
+
+    # Música de fundo (opcional)
+    musica    = _musica_periodo()
+    extra_inp = ["-i", musica] if musica else []
+    if musica:
+        afiltro = (
+            "[1:a]volume=1.0[pray];"
+            f"[2:a]volume=0.13,aloop=loop=-1:size=2e+09,atrim=duration={dur}[mus];"
+            "[pray][mus]amix=inputs=2:duration=first:dropout_transition=3[aout]"
+        )
+    else:
+        afiltro = "[1:a]volume=1.0[aout]"
+
+    vfiltro = (
+        "[0:v]scale=1920:1080:force_original_aspect_ratio=increase,"
+        "crop=1920:1080,setsar=1,fps=30[vout]"
+    )
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0", "-i", str(concat_file),
+        "-i", str(audio),
+        *extra_inp,
+        "-filter_complex", f"{vfiltro};{afiltro}",
+        "-map", "[vout]", "-map", "[aout]",
+        "-t", str(dur),
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+        "-r", "30", "-pix_fmt", "yuv420p",
+        str(saida),
+    ]
+    log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+    concat_file.unlink(missing_ok=True)
+    if result.returncode != 0:
+        saida.unlink(missing_ok=True)
+        raise RuntimeError(f"FFmpeg assembler falhou: {result.stderr[-600:]}")
+    mb = saida.stat().st_size // (1024 * 1024)
+    log.info(f"Assembler: {saida.name} pronto ({mb} MB)")
+    return saida
+
+
+def loop_assembler():
+    """Monitora DIR_BLOCOS por novos audio_*.mp3, monta blocos H com videos_base/."""
+    log.info("Assembler iniciado — aguardando audio_*.mp3 em blocos/")
+    while not _ev_parar.is_set():
+        try:
+            for audio in sorted(DIR_BLOCOS.glob("audio_*.mp3")):
+                ts      = audio.stem.replace("audio_", "")
+                bloco_h = DIR_BLOCOS / f"bloco_{ts}_h.mp4"
+                if bloco_h.exists():
+                    audio.unlink(missing_ok=True)
+                    continue
+                try:
+                    _montar_bloco_h(audio)
+                    audio.unlink(missing_ok=True)
+                    log.info(f"Assembler: {bloco_h.name} adicionado à rotação.")
+                except Exception as e:
+                    log.error(f"Assembler erro ({audio.name}): {e}")
+        except Exception as e:
+            log.error(f"loop_assembler erro: {e}")
+        _ev_parar.wait(timeout=60)
+    log.info("Assembler encerrado.")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # THREAD: TRANSMISSOR
 # ═══════════════════════════════════════════════════════════════════════
 
+def _loop_blocos(proc_h, proc_v, sk_h, sk_v, ing_h, ing_v, max_seg=None):
+    """Loop de rotação de blocos. max_seg=None → eterno (modo permanente)."""
+    global _rotation_idx
+    ciclo_start = time.time()
+
+    while not _ev_parar.is_set():
+        blocos = listar_blocos()
+        if not blocos:
+            log.warning("Sem blocos disponíveis, aguardando 60s...")
+            if _ev_parar.wait(timeout=60): return proc_h, proc_v
+            continue
+
+        h0, v0 = blocos[_rotation_idx % len(blocos)]
+        log.info(f"Iniciando bloco: {h0.name}")
+        _matar_proc(proc_h, "H")
+        _matar_proc(proc_v, "V")
+        proc_h = _iniciar_proc(h0, sk_h, ing_h, "1920x1080", "3500k", "H")
+        if sk_v:
+            proc_v = _iniciar_proc(v0, sk_v, ing_v, "1080x1920", "2500k", "V")
+        else:
+            proc_v = None
+            log.info("FFmpeg V desativado (sem STREAM_KEY_V configurada)")
+        with _lock:
+            _estado["proc_h"] = proc_h
+            _estado["proc_v"] = proc_v
+
+        bloco_start    = time.time()
+        suplica_gerada = False
+
+        while not _ev_parar.is_set():
+            now     = time.time()
+            elapsed = now - bloco_start
+
+            if elapsed >= SUPLICA_GERAR_OFFSET and not suplica_gerada:
+                _ev_suplica_gerar.set()
+                _ev_suplica_pronta.clear()
+                suplica_gerada = True
+
+            if elapsed >= DURACAO_BLOCO_SEG:
+                _rotation_idx += 1
+                _limpar_suplicas_antigas()
+                break
+
+            if max_seg and (now - ciclo_start) >= max_seg:
+                return proc_h, proc_v
+
+            if proc_h.poll() is not None:
+                # FFmpeg encerrou (fim do bloco ou crash) — reiniciar imediatamente
+                stderr_h = b""
+                try:
+                    lf = BASE_DIR / "ffmpeg_h.log"
+                    if lf.exists(): stderr_h = lf.read_bytes()[-500:]
+                except: pass
+                log.info(f"FFmpeg H encerrou — reiniciando ({stderr_h.decode('utf-8', errors='ignore')[-100:].strip()})")
+                # Avançar para o próximo bloco na rotação
+                blocos = listar_blocos()
+                if blocos:
+                    _rotation_idx = (_rotation_idx + 1) % len(blocos)
+                    h0, v0 = blocos[_rotation_idx]
+                proc_h = _iniciar_proc(h0, sk_h, ing_h, "1920x1080", "3500k", "H")
+                with _lock: _estado["proc_h"] = proc_h
+                bloco_start = time.time()  # reset timer para o novo bloco
+                suplica_gerada = False
+                continue  # não dormir — já verificar na próxima iteração
+
+            if proc_v and proc_v.poll() is not None:
+                log.info("FFmpeg V encerrou — reiniciando")
+                if sk_v:
+                    proc_v = _iniciar_proc(v0, sk_v, ing_v, "1080x1920", "2500k", "V")
+                    with _lock: _estado["proc_v"] = proc_v
+                continue
+
+            time.sleep(2)  # era 15s — reduzido para detectar fim de bloco rapidamente
+
+    return proc_h, proc_v
+
+
 def loop_transmissor():
-    yt = get_youtube()
+    global _rotation_idx
     ciclo = 0
+
+    # ── Modo Permanente: chaves fixas do .env, zero chamadas API ────────
+    # Ciclos de 6h: stream vai offline → YouTube salva VOD → reinicia na mesma chave
+    if MODO_PERMANENTE:
+        sk_v_ativo = STREAM_KEY_V if STREAM_KEY_V else None
+        log.info("Modo PERMANENTE: usando stream keys fixas (sem criar broadcasts via API)")
+        log.info(f"  sk_h={STREAM_KEY_H[:8]}...  sk_v={'(desativado)' if not sk_v_ativo else STREAM_KEY_V[:8]+'...'}")
+        with _lock:
+            _estado["live_id_h"] = BROADCAST_ID_H
+            _estado["live_id_v"] = BROADCAST_ID_V
+
+        while not _ev_parar.is_set():
+            ciclo += 1
+            log.info(f"Transmissor — iniciando ciclo {ciclo} de 6h")
+            proc_h = proc_v = None
+            try:
+                proc_h, proc_v = _loop_blocos(proc_h, proc_v,
+                                               STREAM_KEY_H, sk_v_ativo,
+                                               INGEST_URL, INGEST_URL,
+                                               max_seg=DURACAO_CICLO_SEG)
+            finally:
+                _matar_proc(proc_h, "H")
+                _matar_proc(proc_v, "V")
+                with _lock:
+                    _estado["proc_h"] = None
+                    _estado["proc_v"] = None
+
+            if _ev_parar.is_set():
+                break
+            # Stream offline → YouTube processa e salva VOD deste ciclo
+            log.info("Ciclo 6h concluído — aguardando 60s para YouTube salvar VOD...")
+            if _ev_parar.wait(timeout=60):
+                break
+            log.info(f"Reiniciando stream (ciclo {ciclo + 1})...")
+        return
+
+    # ── Modo Dinâmico: cria broadcast via API a cada 6h ─────────────────
+    yt = get_youtube()
 
     while not _ev_parar.is_set():
         ciclo += 1
@@ -751,88 +1002,28 @@ def loop_transmissor():
 
         try:
             ts = datetime.now(FUSO).strftime("%d/%m %H:%M")
-            bid_h, sk_h, ing_h = criar_live(yt, f"H-{ciclo}")
-            bid_v, sk_v, ing_v = criar_live(yt, f"V-{ciclo}")
+            try:
+                bid_h, sk_h, ing_h = criar_live(yt, f"H-{ciclo}")
+                bid_v, sk_v, ing_v = criar_live(yt, f"V-{ciclo}")
+            except Exception as e_api:
+                msg = str(e_api)
+                if "userRequestsExceedRateLimit" in msg or "rateLimitExceeded" in msg:
+                    log.error(f"COTA ESGOTADA — aguardando 60 minutos antes de tentar novamente...")
+                    if _ev_parar.wait(timeout=3600): return
+                    continue
+                raise
 
             with _lock:
                 _estado["live_id_h"] = bid_h
                 _estado["live_id_v"] = bid_v
 
-            # Usar primeiro bloco da rotação
-            h0, v0 = blocos[_rotation_idx % len(blocos)]
-            _resetar_playlist(PLAYLIST_H_FILE, h0)
-            _resetar_playlist(PLAYLIST_V_FILE, v0)
-            log.info(f"Playlist inicial: {h0.name}")
-
             log.info("Aguardando 15s para broadcast ativar...")
             time.sleep(15)
 
-            proc_h = _iniciar_proc(PLAYLIST_H_FILE, sk_h, ing_h, "1920x1080", "3500k", "H")
-            proc_v = _iniciar_proc(PLAYLIST_V_FILE, sk_v, ing_v, "1080x1920", "2500k", "V")
-            with _lock:
-                _estado["proc_h"] = proc_h
-                _estado["proc_v"] = proc_v
-
-            ciclo_start   = time.time()
-            bloco_start   = time.time()
-            suplica_gerada = False
-            transicao_feita = False
-
-            while not _ev_parar.is_set():
-                now     = time.time()
-                elapsed = now - bloco_start
-                ciclo_elapsed = now - ciclo_start
-
-                # Sinalizar geração de súplica
-                if elapsed >= SUPLICA_GERAR_OFFSET and not suplica_gerada:
-                    _ev_suplica_gerar.set()
-                    _ev_suplica_pronta.clear()
-                    suplica_gerada = True
-
-                # Transição: append próxima entrada 90s antes do fim
-                if elapsed >= DURACAO_BLOCO_SEG - TRANSICAO_ANTECIP and not transicao_feita:
-                    suplica_ok = _ev_suplica_pronta.wait(timeout=60)
-                    if suplica_ok:
-                        with _lock_suplica:
-                            sh = _suplica_caminhos.get("h")
-                            sv = _suplica_caminhos.get("v")
-                        if sh and sh.exists() and sv and sv.exists():
-                            _append_playlist(PLAYLIST_H_FILE, sh)
-                            _append_playlist(PLAYLIST_V_FILE, sv)
-                            log.info("Súplica injetada na playlist")
-                    else:
-                        log.warning("Súplica não ficou pronta a tempo — bloco seguinte direto")
-
-                    next_h, next_v = _proximo_bloco()
-                    _append_playlist(PLAYLIST_H_FILE, next_h)
-                    _append_playlist(PLAYLIST_V_FILE, next_v)
-                    transicao_feita = True
-
-                # Avançar para próximo bloco quando tempo atual esgotou
-                if elapsed >= DURACAO_BLOCO_SEG + DURACAO_SUPLICA_SEG + 20:
-                    bloco_start     = time.time()
-                    suplica_gerada  = False
-                    transicao_feita = False
-                    _limpar_suplicas_antigas()
-
-                # Fim do ciclo de 6h
-                if ciclo_elapsed >= DURACAO_CICLO_SEG:
-                    log.info(f"Ciclo {ciclo} concluído (6h).")
-                    break
-
-                # Monitorar saúde dos processos FFmpeg
-                if proc_h.poll() is not None:
-                    log.error("FFmpeg H caiu! Reiniciando...")
-                    proc_h = _iniciar_proc(PLAYLIST_H_FILE, sk_h, ing_h, "1920x1080", "3500k", "H")
-                    with _lock:
-                        _estado["proc_h"] = proc_h
-                if proc_v.poll() is not None:
-                    log.error("FFmpeg V caiu! Reiniciando...")
-                    proc_v = _iniciar_proc(PLAYLIST_V_FILE, sk_v, ing_v, "1080x1920", "2500k", "V")
-                    with _lock:
-                        _estado["proc_v"] = proc_v
-
-                time.sleep(15)
+            # Loop de blocos dentro do ciclo de 6h (reutiliza _loop_blocos)
+            proc_h, proc_v = _loop_blocos(proc_h, proc_v,
+                                           sk_h, sk_v, ing_h, ing_v,
+                                           max_seg=DURACAO_CICLO_SEG)
 
         except Exception as e:
             log.error(f"Transmissor ciclo {ciclo}: {e}")
@@ -851,8 +1042,8 @@ def loop_transmissor():
                 encerrar_live(yt, bid_v)
 
             if not _ev_parar.is_set():
-                log.info("Pausa 20s antes do próximo ciclo...")
-                time.sleep(20)
+                log.info("Pausa 30s antes do próximo ciclo...")
+                _ev_parar.wait(timeout=30)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -901,9 +1092,10 @@ def main():
     garantir_assets_vps()
 
     threads = [
-        threading.Thread(target=loop_suplicas,   name="Suplicas",   daemon=True),
-        threading.Thread(target=loop_transmissor, name="Transmissor", daemon=True),
-        threading.Thread(target=loop_monitor,     name="Monitor",     daemon=True),
+        threading.Thread(target=loop_suplicas,    name="Suplicas",    daemon=True),
+        threading.Thread(target=loop_transmissor,  name="Transmissor",  daemon=True),
+        threading.Thread(target=loop_monitor,      name="Monitor",      daemon=True),
+        threading.Thread(target=loop_assembler,    name="Assembler",    daemon=True),
     ]
     for t in threads:
         t.start()
@@ -918,4 +1110,11 @@ def main():
         _ev_suplica_gerar.set()
         with _lock:
             _matar_proc(_estado.get("proc_h"), "H")
-            _mat
+            _matar_proc(_estado.get("proc_v"), "V")
+        for t in threads:
+            t.join(timeout=15)
+        log.info("ao_vivo.py encerrado.")
+
+
+if __name__ == "__main__":
+    main()

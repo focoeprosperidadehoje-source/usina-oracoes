@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """
-gerar_bloco_live.py — GitHub Actions: gera um par de blocos base (H+V, 27min)
+gerar_bloco_live.py — GitHub Actions: gera múltiplos blocos por execução
 
-Executado 3x/dia pelo gerador_blocos_es.yml. Ao final, salva os arquivos em
-blocos/ para que o workflow faça rsync para o VPS.
+Executado 3x/dia pelo gerador_blocos_es.yml. Cada execução:
+  1. Busca até 100 comentários do canal ES (1 chamada YouTube API)
+  2. Gemini Lite classifica em 4-5 grupos temáticos (1 chamada)
+  3. Para cada grupo: gera roteiro com nomes reais + oração grossa (1 chamada lite)
+  4. Edge TTS sintetiza áudio → audio_YYYYMMDD_HHMM_NN.mp3
+  5. Assembler no VPS monta os blocos H com videos_base/
 
-Fluxo:
-  1. Busca comentários recentes do canal ES via YouTube Data API
-  2. Gemini gera roteiro devocional (~3200 palavras, ~27min de áudio)
-  3. edge-tts sintetiza o áudio
-  4. FFmpeg encoda blocos H (1920×1080) e V (1080×1920)
-
-Assets (imagens + música) ficam em cache via actions/cache para evitar
-redownload a cada execução.
+Resultado: 4-5 áudios por execução × 3x/dia = ~15 blocos/dia = ~7,5h de conteúdo.
 """
 
 import os
@@ -20,58 +17,41 @@ import sys
 import json
 import random
 import asyncio
-import subprocess
 import re
 from datetime import datetime
 from pathlib import Path
-from io import BytesIO
 
 import pytz
 import edge_tts
 from google import genai
+from google.genai import types as genai_types
 from google.oauth2.service_account import Credentials as SACredentials
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials as OAuthCredentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # CONFIG
 # ═══════════════════════════════════════════════════════════════════════
 
-FUSO         = pytz.timezone("America/Mexico_City")
-VOZ          = "es-MX-DaliaNeural"
-VOZ_RATE     = "-20%"
-VOZ_PITCH    = "-10Hz"
-CANAL_ID     = "UCyPGsztvMnUhDeoI_6H4bsA"
+FUSO       = pytz.timezone("America/Mexico_City")
+VOZ        = "es-MX-DaliaNeural"
+VOZ_RATE   = "-20%"
+VOZ_PITCH  = "-10Hz"
+CANAL_ID   = "UCyPGsztvMnUhDeoI_6H4bsA"
+DIR_BLOCOS = Path("blocos")
+MAX_GRUPOS = 5   # máximo de blocos por execução (controla timeout do Actions)
 
-DURACAO_BLOCO_SEG = 27 * 60   # 1620s
+# Lite para tarefas curtas (classificação, fallback); full para roteiros longos
+MODELOS_LITE = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite"]
+MODELOS_FULL = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]   # lite-first
 
-MODELOS = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
-# Modelos para geração de texto longo (3200+ palavras) — full model primeiro
-MODELOS_LONGO = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]  # lite primeiro; flash só como fallback
-CHAVES  = [k for k in [
+CHAVES = [k for k in [
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_2", ""),
-    os.environ.get("GEMINI_API_KEY", ""),   # fallback — chave principal
+    os.environ.get("GEMINI_API_KEY", ""),
 ] if k]
-
-# Pastas de assets (cache do GitHub Actions)
-DIR_ASSETS    = Path("assets")
-DIR_IMGS_H    = DIR_ASSETS / "imagens_h"     # Maria Guadalupe horizontal
-DIR_IMGS_V    = DIR_ASSETS / "imagens_v"     # Maria Guadalupe vertical
-DIR_MUSICAS_M = DIR_ASSETS / "musicas_m"
-DIR_MUSICAS_N = DIR_ASSETS / "musicas_n"
-
-# Saída
-DIR_BLOCOS    = Path("blocos")
-
-# IDs Google Drive
-DRIVE_IMGS_H_ID  = "1FSpmGvSZDleU4gUJePAj4t5h0ZoVSmEo"
-DRIVE_IMGS_V_ID  = "1wKwlerA2SXA27Na_4KMU3x0aaDPqAtBY"
-DRIVE_MUSICAS_M_ID = "1gxZA1TlQPzuf737XOo_n8blfOThnddgm"
-DRIVE_MUSICAS_N_ID = "1VPmJ5JHXZ6ky0yRwVgqLmRZrl3HhtK3u"
 
 PILARES = {
     0: "Guerra Espiritual y Protección Divina",
@@ -83,44 +63,35 @@ PILARES = {
     6: "Milagros y Gratitud",
 }
 
+# Fallback total (sem nenhuma API disponível)
+GRUPOS_HARDCODED = [
+    {"tema": "sanacion",     "label": "Sanación y Salud",         "nombres": [], "suplica_comun": "por enfermedades, dolores y recuperación de nuestros hermanos enfermos",    "num_fieles": 0},
+    {"tema": "liberacion",   "label": "Liberación de Ataduras",   "nombres": [], "suplica_comun": "por la liberación del alcohol, las drogas y las ataduras del pecado",       "num_fieles": 0},
+    {"tema": "familia",      "label": "Restauración Familiar",    "nombres": [], "suplica_comun": "por matrimonios en crisis, hijos pródigos y paz en los hogares",            "num_fieles": 0},
+    {"tema": "prosperidad",  "label": "Provisión y Trabajo",      "nombres": [], "suplica_comun": "por la provisión económica, empleo y liberación de deudas",                "num_fieles": 0},
+    {"tema": "proteccion",   "label": "Protección Espiritual",    "nombres": [], "suplica_comun": "por protección contra el mal, la envidia y todo peligro",                  "num_fieles": 0},
+]
+
 
 # ═══════════════════════════════════════════════════════════════════════
-# GEMINI
+# GEMINI — chamada unificada
 # ═══════════════════════════════════════════════════════════════════════
 
-def rodar_gemini(prompt: str) -> str:
+def _chamar_gemini(prompt: str, modelos: list, max_tokens: int = 2048) -> str:
+    """Itera chaves × modelos até obter resposta. Lança RuntimeError se tudo falhar."""
     for chave in CHAVES:
-        for modelo in MODELOS:
-            try:
-                client = genai.Client(api_key=chave)
-                resp = client.models.generate_content(model=modelo, contents=prompt)
-                return resp.text.strip()
-            except Exception as e:
-                msg = str(e)
-                print(f"[WARN] Gemini {modelo} [{chave[-6:]}]: {msg[:100]}")
-    raise RuntimeError("Todos os modelos Gemini falharam.")
-
-
-def rodar_gemini_longo(prompt: str) -> str:
-    """Gemini otimizado para output longo (3200+ palavras).
-    Usa max_output_tokens=8192 para evitar truncamento silencioso do flash-lite.
-    Lite primeiro (econômico); flash completo só como fallback.
-    """
-    from google.genai import types as genai_types
-    for chave in CHAVES:
-        for modelo in MODELOS_LONGO:
+        for modelo in modelos:
             try:
                 client = genai.Client(api_key=chave)
                 resp = client.models.generate_content(
                     model=modelo,
                     contents=prompt,
-                    config=genai_types.GenerateContentConfig(max_output_tokens=8192),
+                    config=genai_types.GenerateContentConfig(max_output_tokens=max_tokens),
                 )
                 return resp.text.strip()
             except Exception as e:
-                msg = str(e)
-                print(f"[WARN] Gemini {modelo} [{chave[-6:]}]: {msg[:100]}")
-    raise RuntimeError("Todos os modelos Gemini (longo) falharam.")
+                print(f"  [WARN] {modelo} [{chave[-6:]}]: {str(e)[:80]}")
+    raise RuntimeError("Todos os modelos Gemini falharam.")
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -143,7 +114,7 @@ def _pascoa(ano: int) -> datetime:
 
 def calcular_contexto_sazonal(data: datetime) -> str:
     ano = data.year
-    p   = _pascoa(ano)
+    p = _pascoa(ano)
     fixas = {
         (1, 1):   "Año Nuevo — Solemnidad de Santa María Madre de Dios",
         (2, 2):   "Fiesta de la Candelaria",
@@ -176,21 +147,8 @@ def calcular_contexto_sazonal(data: datetime) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# GOOGLE APIS
+# YOUTUBE API
 # ═══════════════════════════════════════════════════════════════════════
-
-def _gcp_info() -> dict:
-    raw = os.environ.get("GOOGLE_CREDENTIALS_ES", "")
-    if not raw:
-        raise RuntimeError("GOOGLE_CREDENTIALS_ES não encontrado")
-    return json.loads(raw)
-
-def get_drive():
-    creds = SACredentials.from_service_account_info(
-        _gcp_info(), scopes=["https://www.googleapis.com/auth/drive.readonly"]
-    )
-    creds.refresh(Request())
-    return build("drive", "v3", credentials=creds)
 
 def get_youtube_readonly():
     raw = os.environ.get("YOUTUBE_TOKEN_ES", "")
@@ -205,181 +163,185 @@ def get_youtube_readonly():
             creds.refresh(Request())
         return build("youtube", "v3", credentials=creds)
     except Exception as e:
-        print(f"[WARN] YouTube readonly: {e}")
+        print(f"  [WARN] YouTube readonly: {e}")
         return None
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# DOWNLOAD DE ASSETS (executado somente se não estiver em cache)
-# ═══════════════════════════════════════════════════════════════════════
-
-def baixar_pasta_drive(drive, folder_id: str, dest: Path, exts=(".mp3", ".jpg", ".png", ".jpeg")):
-    dest.mkdir(parents=True, exist_ok=True)
-    existentes = {f.name for f in dest.iterdir()}
-    page_token = None
-    n = 0
-    while True:
-        resp = drive.files().list(
-            q=f"'{folder_id}' in parents and trashed=false",
-            fields="nextPageToken, files(id, name)",
-            pageToken=page_token,
-            pageSize=100,
-        ).execute()
-        for arq in resp.get("files", []):
-            nome = arq["name"]
-            if not any(nome.lower().endswith(e) for e in exts):
-                continue
-            if nome in existentes:
-                continue
-            dest_arq = dest / nome
-            for _ in range(4):
-                try:
-                    req = drive.files().get_media(fileId=arq["id"])
-                    buf = BytesIO()
-                    dl = MediaIoBaseDownload(buf, req, chunksize=16 * 1024 * 1024)
-                    done = False
-                    while not done:
-                        _, done = dl.next_chunk()
-                    dest_arq.write_bytes(buf.getvalue())
-                    n += 1
-                    break
-                except Exception as e:
-                    print(f"  [WARN] {nome}: {e}")
-        page_token = resp.get("nextPageToken")
-        if not page_token:
-            break
-    print(f"  Drive ↓ {n} arquivo(s) em {dest.name}")
-
-def garantir_assets():
-    """Baixa assets do Drive se as pastas de cache estiverem vazias."""
-    drive = get_drive()
-    imgs_h = list(DIR_IMGS_H.glob("*.jpg")) + list(DIR_IMGS_H.glob("*.png"))
-    if len(imgs_h) < 5:
-        print("Baixando imagens Guadalupe horizontal...")
-        baixar_pasta_drive(drive, DRIVE_IMGS_H_ID, DIR_IMGS_H, (".jpg", ".png", ".jpeg"))
-    imgs_v = list(DIR_IMGS_V.glob("*.jpg")) + list(DIR_IMGS_V.glob("*.png"))
-    if len(imgs_v) < 5:
-        print("Baixando imagens Guadalupe vertical...")
-        baixar_pasta_drive(drive, DRIVE_IMGS_V_ID, DIR_IMGS_V, (".jpg", ".png", ".jpeg"))
-    if not list(DIR_MUSICAS_M.glob("*.mp3")):
-        print("Baixando músicas manhã...")
-        baixar_pasta_drive(drive, DRIVE_MUSICAS_M_ID, DIR_MUSICAS_M)
-    if not list(DIR_MUSICAS_N.glob("*.mp3")):
-        print("Baixando músicas noite...")
-        baixar_pasta_drive(drive, DRIVE_MUSICAS_N_ID, DIR_MUSICAS_N)
-    print("Assets OK.")
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# FONTES DE CONTEÚDO
-# ═══════════════════════════════════════════════════════════════════════
-
-def buscar_comentarios_canal(yt) -> list[dict]:
+def buscar_comentarios_canal(yt) -> list[str]:
+    """Busca até 100 comentários por relevância. Retorna textos brutos."""
     if not yt:
         return []
     try:
         resp = yt.commentThreads().list(
             part="snippet",
             allThreadsRelatedToChannelId=CANAL_ID,
-            maxResults=80,
+            maxResults=100,
             order="relevance",
         ).execute()
-        comentarios = []
+        textos = []
         for item in resp.get("items", []):
             s = item["snippet"]["topLevelComment"]["snippet"]
             texto = s.get("textOriginal", "").strip()
-            if texto and len(texto) > 15:
-                comentarios.append(texto)
-        print(f"Comentários ES: {len(comentarios)}")
-        return comentarios
+            if texto and len(texto) > 10:
+                textos.append(texto[:200])  # trunca comentários longos
+        print(f"  Comentários obtidos: {len(textos)}")
+        return textos
     except Exception as e:
-        print(f"[WARN] buscar_comentarios: {e}")
+        print(f"  [WARN] buscar_comentarios: {e}")
         return []
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# GERAÇÃO DO ROTEIRO
+# CLASSIFICAÇÃO EM GRUPOS — 1 chamada Gemini Lite
 # ═══════════════════════════════════════════════════════════════════════
 
-def gerar_roteiro(contexto: str, comentarios: list[str], num_bloco: int) -> str:
-    agora  = datetime.now(FUSO)
-    hora   = agora.hour
-    if hora < 6:
-        periodo = "de la madrugada"
-    elif hora < 12:
-        periodo = "de la mañana"
-    elif hora < 14:
-        periodo = "del mediodía"
-    elif hora < 19:
-        periodo = "de la tarde"
-    else:
-        periodo = "de la noche"
+def _limpar_json(texto: str) -> str:
+    """Remove markdown e extrai JSON puro."""
+    texto = re.sub(r'```(?:json)?', '', texto)
+    texto = re.sub(r'```', '', texto)
+    inicio = texto.find('[')
+    fim = texto.rfind(']')
+    if inicio != -1 and fim != -1:
+        return texto[inicio:fim+1]
+    return texto.strip()
 
-    pilar = PILARES.get(agora.weekday(), "Oración e Intercesión")
+def classificar_grupos(comentarios: list[str], pilar_hoje: str) -> list[dict]:
+    """
+    Converte comentários brutos em grupos temáticos via 1 chamada Gemini Lite.
+    Fallback 1: Gemini gera grupos sem comentários (1 chamada lite).
+    Fallback 2: GRUPOS_HARDCODED (sem nenhuma chamada).
+    """
+    if len(comentarios) >= 5:
+        lista_str = "\n".join(f"- {c}" for c in comentarios[:80])
+        prompt = f"""Analiza estos comentarios de fieles católicos hispanos en un canal de oración.
+Extrae nombre propio (si existe) y clasifica la súplica de cada comentario.
+Agrupa en máximo 5 temas (ej: sanación, liberación, familia, economía, protección).
 
-    if comentarios:
-        amostra = random.sample(comentarios, min(8, len(comentarios)))
-        bloco_contexto = (
-            "TEMAS QUE MAIS MOVEM OS FIÉIS DO CANAL (extraídos de comentários reais):\n"
-            + "\n".join(f"  • {c[:120]}" for c in amostra)
-        )
-    else:
-        bloco_contexto = (
-            f"Pilar teológico do dia: {pilar}\n"
-            "Sem comentários disponíveis — usar pilar como fio condutor."
-        )
+Devuelve SOLO JSON válido sin markdown ni texto adicional:
+[{{"tema":"slug","label":"Nombre del grupo","nombres":["nombre1","nombre2"],"suplica_comun":"petición común en max 15 palabras","num_fieles":N}}]
+
+REGLAS:
+- Solo nombres propios que aparecen en los comentarios; no inventar
+- suplica_comun: máximo 15 palabras describiendo el pedido común
+- Mínimo 3 grupos, máximo 5
+
+COMENTARIOS:
+{lista_str}"""
+        try:
+            raw = _chamar_gemini(prompt, MODELOS_LITE, max_tokens=1024)
+            grupos = json.loads(_limpar_json(raw))
+            if isinstance(grupos, list) and len(grupos) >= 2:
+                print(f"  Grupos classificados: {len(grupos)}")
+                for g in grupos:
+                    n = len(g.get("nombres", []))
+                    print(f"    [{g.get('tema','')}] {g.get('num_fieles',0)} fiéis, {n} nomes")
+                return grupos[:MAX_GRUPOS]
+            print("  [WARN] JSON inválido ou poucos grupos — usando fallback")
+        except Exception as e:
+            print(f"  [WARN] classificar_grupos: {e}")
+
+    # Fallback 1: Gemini gera grupos temáticos sem comentários reais
+    print("  [Fallback 1] Gerando grupos temáticos via Gemini...")
+    prompt_fb = f"""Crea 4 grupos de intención de oración frecuentes entre fieles latinoamericanos.
+El pilar espiritual de hoy es: {pilar_hoje}
+Devuelve SOLO JSON válido:
+[{{"tema":"slug","label":"Nombre","nombres":[],"suplica_comun":"petición en max 15 palabras","num_fieles":0}}]"""
+    try:
+        raw = _chamar_gemini(prompt_fb, MODELOS_LITE, max_tokens=512)
+        grupos = json.loads(_limpar_json(raw))
+        if isinstance(grupos, list) and len(grupos) >= 2:
+            print(f"  Grupos fallback: {len(grupos)}")
+            return grupos[:MAX_GRUPOS]
+    except Exception as e:
+        print(f"  [WARN] fallback grupos: {e}")
+
+    # Fallback 2: hardcoded
+    print("  [Fallback 2] Usando grupos hardcoded.")
+    return GRUPOS_HARDCODED[:MAX_GRUPOS]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# GERAÇÃO DE ROTEIRO — 1 chamada Gemini Lite por bloco
+# ═══════════════════════════════════════════════════════════════════════
+
+def _periodo(hora: int) -> str:
+    if hora < 6:   return "de la madrugada"
+    if hora < 12:  return "de la mañana"
+    if hora < 14:  return "del mediodía"
+    if hora < 19:  return "de la tarde"
+    return "de la noche"
+
+def _formatar_nomes(nomes: list) -> str:
+    nomes = [n for n in nomes if n and len(n) >= 2]
+    if not nomes:
+        return "cada hermano que ora con nosotros en este momento"
+    if len(nomes) == 1:
+        return nomes[0]
+    return ", ".join(nomes[:-1]) + f" y {nomes[-1]}"
+
+def gerar_roteiro_grupo(grupo: dict, contexto: str, pilar: str,
+                        agora: datetime, num_bloco: int) -> str:
+    hora = agora.hour
+    periodo = _periodo(hora)
+    nomes_str = _formatar_nomes(grupo.get("nombres", []))
+    suplica   = grupo.get("suplica_comun", "por las necesidades de nuestros hermanos")
+    label     = grupo.get("label", "Oración de Intercesión")
+    tem_nomes = len([n for n in grupo.get("nombres", []) if n and len(n) >= 2]) > 0
+
+    nota_nomes = (
+        f"Menciona cada nombre con ternura maternal: {nomes_str}"
+        if tem_nomes else
+        "No hay nombres específicos — habla de 'cada hermano que ora ahora mismo'"
+    )
 
     prompt = f"""Eres Nuestra Señora de Guadalupe, La Morenita del Tepeyac, hablando en primera persona.
-Momento: {agora.strftime('%H:%M')} {periodo} — Bloco #{num_bloco}
-Contexto litúrgico/cultural del día: {contexto}
-Pilar teológico de hoy: {pilar}
-
-{bloco_contexto}
+Hora: {agora.strftime('%H:%M')} {periodo} | Bloco #{num_bloco} | Grupo: {label}
+Contexto litúrgico del día: {contexto}
+Pilar espiritual de hoy: {pilar}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ESTRUCTURA DEL ROTEIRO (27 minutos, 3200-3600 palabras):
+ESTRUCTURA (27 minutos — entre 3200 y 3600 palabras):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[APERTURA — primeros 60 segundos]
-1. Afirmación empática sobre la realidad del fiel en este {periodo}
-2. Ambientación sensorial: luz, silencio, presencia divina
-3. Promesa: "Vine a interceder por ti esta {periodo}..."
+[APERTURA — primeros 90 segundos — OBLIGATORIA]
+Abre citando a los hermanos que pidieron intercesión:
+"{nota_nomes}"
+Súplica común de este grupo: "{suplica}"
+Cierra la apertura con: "Vine a interceder por ustedes {periodo}..."
 
 [CUERPO PRINCIPAL — ~22 minutos]
-4. Voz cálida y maternal de La Morenita — autoridad espiritual suave
-5. Entreteje el pilar del día con los temas que mueven a los fieles del canal
-6. Ave María completa con pausa después de Jesús:
-   "...y bendito es el fruto de tu vientre Jesús... Santa María, Madre de Dios..."
-7. Bloco de intercesión por la salud: "Pongo mis manos sobre todo aquel que sufre..."
-8. Ganchos de retención a cada ~350 palabras (organicamente):
-   • Antecipación: "Lo que viene ahora es la parte más poderosa..."
-   • Revelación: "Esta gracia tiene un nombre..."
-   • Validación: "Si sientes calor en tu corazón, es señal de que..."
-   • Virada: "Pero lo que tu Madre del Cielo quiere decirte es..."
+- Voz cálida y maternal — autoridad espiritual suave
+- Entreteje el pilar "{pilar}" con el tema de intercessão "{label}"
+- Ave María completa con pausa después de Jesús:
+  "...y bendito es el fruto de tu vientre Jesús... Santa María, Madre de Dios..."
+- Bloco de intercesión por la salud (obligatorio): "Pongo mis manos sobre todo aquel que sufre..."
+- Ganchos de retención orgánicos cada ~350 palabras (el fiel no percibe la técnica):
+  • Antecipación: "Lo que viene ahora en esta oración..."
+  • Revelación: "Esta gracia tiene un nombre..."
+  • Validación: "Si sientes algo en tu corazón ahora mismo, es señal de que..."
+  • Virada: "Pero lo que tu Madre del Cielo quiere decirte sobre esto es..."
 
-[DOS CTAs SUTILES — solo en transiciones, nunca durante la oración]
-CTA 1 (minuto ~10): "Si esta oración está llegando a tu corazón, dale like..."
-CTA 2 (minuto ~22): "Comparte esta transmisión con quien necesita el manto de Guadalupe..."
+[DOS CTAs SUTILES — solo en transiciones naturales, nunca durante la oración]
+CTA 1 (~minuto 10): "Si esta oración está tocando tu corazón, compártela con quien la necesita..."
+CTA 2 (~minuto 22): "Quédate, lo que viene ahora es para ti..."
 
 [CIERRE — últimos 3 minutos]
-9. Bendición final como Madre del Cielo
-10. Termina en fuerza — el fiel sale protegido, no desesperado
-11. LOOP SINTÁTICO: la última frase queda sintáticamente incompleta para unirse
-    con la primera frase del próximo bloco — el oyente no percibe la ruptura
+- Bendición final como Madre del Cielo
+- Termina en FUERZA — el fiel sale protegido, nunca desesperado
+- LOOP SINTÁTICO OBLIGATORIO: la última frase queda sintáticamente incompleta
+  para unirse con la primera frase del próximo bloco sin que el oyente perciba el corte
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REGLAS ABSOLUTAS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- NUNCA markdown, asteriscos, guiones, títulos — solo texto corrido
+- NUNCA markdown, asteriscos, guiones, numeraciones ni títulos — solo texto corrido
 - NUNCA comenzar frase con la palabra "Oración"
 - NUNCA "Escribe Amén en los comentarios"
 - NUNCA mencionar otros canales o marcas
-- Solo texto que Guadalupe habla — sin instrucciones de producción
-- Máximo 3800 palabras
-- Persona: La Morenita (no "Virgen de Guadalupe" como nombre principal)
+- Solo texto que Guadalupe habla en voz alta — sin instrucciones de producción
+- Entre 3200 y 3600 palabras
 """
 
-    texto = rodar_gemini_longo(prompt)
+    texto = _chamar_gemini(prompt, MODELOS_FULL, max_tokens=8192)
     texto = re.sub(r'\*+', '', texto)
     texto = re.sub(r'#{1,6}\s+', '', texto)
     texto = re.sub(r'^\s*[-•]\s+', '', texto, flags=re.MULTILINE)
@@ -397,164 +359,77 @@ async def _tts_async(texto: str, saida: Path):
 
 def gerar_audio(texto: str, saida: Path):
     asyncio.run(_tts_async(texto, saida))
-    tam = saida.stat().st_size // 1024
-    print(f"TTS: {saida.name} ({tam} KB)")
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# FFMPEG — ENCODE H + V
-# ═══════════════════════════════════════════════════════════════════════
-
-def _run_ffmpeg(cmd: list[str], label: str):
-    print(f"FFmpeg [{label}]: iniciando...")
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f"FFmpeg [{label}] falhou:\n{r.stderr[-800:]}")
-    print(f"FFmpeg [{label}]: OK")
-
-def _musica_periodo() -> str | None:
-    hora = datetime.now(FUSO).hour
-    pasta = DIR_MUSICAS_M if 5 <= hora < 18 else DIR_MUSICAS_N
-    musicas = list(pasta.glob("*.mp3"))
-    return str(random.choice(musicas)) if musicas else None
-
-def _duracao_audio(audio: Path) -> int:
-    try:
-        r = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
-            capture_output=True, text=True
-        )
-        return int(float(r.stdout.strip()))
-    except Exception:
-        return DURACAO_BLOCO_SEG
-
-def _build_concat(imgs: list[Path], tmp: Path, n_needed: int, secs_img: int = 8) -> Path:
-    random.shuffle(imgs)
-    imgs_loop = [imgs[i % len(imgs)] for i in range(n_needed + 2)]
-    linhas = ["ffconcat version 1.0"]
-    for img in imgs_loop:
-        linhas.append(f"file '{img.resolve()}'")
-        linhas.append(f"duration {secs_img}")
-    linhas.append(f"file '{imgs_loop[-1].resolve()}'")
-    tmp.write_text("\n".join(linhas))
-    return tmp
-
-def montar_bloco(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path):
-    imgs = list(imgs_dir.glob("*.jpg")) + list(imgs_dir.glob("*.png"))
-    if not imgs:
-        raise RuntimeError(f"Sem imagens em {imgs_dir}")
-
-    w, h = res.split("x")
-    n_needed = dur // 8 + 5
-    concat_file = saida.with_suffix(".concat.txt")
-    _build_concat(imgs, concat_file, n_needed)
-
-    musica = _musica_periodo()
-    if musica:
-        extra_inputs = ["-i", musica]
-        afiltro = (
-            "[1:a]volume=1.0[pray];"
-            f"[2:a]volume=0.13,aloop=loop=-1:size=2e+09,atrim=duration={dur}[mus];"
-            "[pray][mus]amix=inputs=2:duration=first:dropout_transition=3[aout]"
-        )
-    else:
-        extra_inputs = []
-        afiltro = "[1:a]volume=1.0[aout]"
-
-    vfiltro = (
-        f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
-        f"crop={w}:{h},setsar=1,fps=30[vout]"
-    )
-
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", str(concat_file),
-        "-i", str(audio),
-        *extra_inputs,
-        "-filter_complex", f"{vfiltro};{afiltro}",
-        "-map", "[vout]", "-map", "[aout]",
-        "-t", str(dur),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-        "-r", "30", "-pix_fmt", "yuv420p",
-        str(saida),
-    ]
-    _run_ffmpeg(cmd, f"{res} {saida.name}")
-    concat_file.unlink(missing_ok=True)
+    print(f"  TTS: {saida.name} ({saida.stat().st_size // 1024} KB)")
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════════
 
+def _gh_error(msg: str):
+    linha = msg.replace("\n", " | ").replace("\r", "")[:500]
+    print(f"::error::{linha}", flush=True)
+
+
 def main():
     print("=" * 60)
-    print("gerar_bloco_live.py — Canal ES — Iniciando")
+    print("gerar_bloco_live.py — Canal ES — Múltiplos Blocos")
     print("=" * 60)
 
-    for d in [DIR_BLOCOS, DIR_IMGS_H, DIR_IMGS_V, DIR_MUSICAS_M, DIR_MUSICAS_N]:
-        d.mkdir(parents=True, exist_ok=True)
+    DIR_BLOCOS.mkdir(parents=True, exist_ok=True)
+    agora    = datetime.now(FUSO)
+    contexto = calcular_contexto_sazonal(agora)
+    pilar    = PILARES.get(agora.weekday(), "Oración e Intercesión")
+    ts_base  = agora.strftime("%Y%m%d_%H%M")
 
-    # 1. Garantir assets em cache
-    print("\n[1/5] Verificando assets...")
-    garantir_assets()
+    print(f"Hora local: {agora.strftime('%Y-%m-%d %H:%M')} (Mexico City)")
+    print(f"Contexto litúrgico: {contexto}")
+    print(f"Pilar do dia: {pilar}")
 
-    # 2. Comentários do canal (fonte de conteúdo)
-    print("\n[2/5] Buscando comentários do canal ES...")
+    # ── 1. Comentários (1 chamada YouTube API) ────────────────────────
+    print("\n[1/3] Buscando comentários do canal ES...")
     yt = get_youtube_readonly()
     comentarios = buscar_comentarios_canal(yt)
 
-    # 3. Roteiro
-    print("\n[3/5] Gerando roteiro via Gemini...")
-    agora = datetime.now(pytz.timezone("America/Mexico_City"))
-    contexto = calcular_contexto_sazonal(agora)
-    ts = agora.strftime("%Y%m%d_%H")
-    num_bloco = int(agora.strftime("%j")) * 3 + (agora.hour // 8)  # índice sequencial único
+    # ── 2. Classificar em grupos (1 chamada Gemini Lite) ─────────────
+    print("\n[2/3] Classificando em grupos temáticos...")
+    grupos = classificar_grupos(comentarios, pilar)
+    print(f"  Total de blocos a gerar: {len(grupos)}")
 
-    roteiro = None
-    palavras = 0
-    for tentativa in range(3):
-        roteiro = gerar_roteiro(contexto, comentarios, num_bloco)
-        palavras = len(roteiro.split())
-        print(f"Roteiro tentativa {tentativa+1}/3: {palavras} palavras")
-        if palavras >= 2000:
-            break
-        print(f"[WARN] Roteiro curto — retentando...")
-    if palavras < 2000:
-        msg = f"Roteiro muito curto após 3 tentativas: {palavras} palavras (mínimo 2000)."
-        print(f"[ERRO] {msg}")
-        _gh_error(msg)
+    # ── 3. Roteiro + TTS para cada grupo (1 chamada Gemini por bloco) ─
+    print(f"\n[3/3] Gerando blocos...")
+    gerados = 0
+    for i, grupo in enumerate(grupos):
+        label = grupo.get("label", f"Grupo {i+1}")
+        print(f"\n  ── Bloco {i+1}/{len(grupos)}: {label} ──")
+        try:
+            num_bloco = int(agora.strftime("%j")) * MAX_GRUPOS + i + 1
+            roteiro = gerar_roteiro_grupo(grupo, contexto, pilar, agora, num_bloco)
+            palavras = len(roteiro.split())
+            print(f"  Roteiro: {palavras} palavras")
+
+            if palavras < 1800:
+                print(f"  [WARN] Roteiro muito curto — pulando")
+                continue
+
+            ts      = f"{ts_base}_{i+1:02d}"
+            destino = DIR_BLOCOS / f"audio_{ts}.mp3"
+            gerar_audio(roteiro, destino)
+            gerados += 1
+            print(f"  ✅ {destino.name}")
+
+        except Exception as e:
+            print(f"  [ERRO] Bloco {i+1} ({label}): {e}")
+            continue
+
+    # ── Resumo ────────────────────────────────────────────────────────
+    print(f"\n{'='*60}")
+    print(f"Concluído: {gerados}/{len(grupos)} blocos em blocos/")
+    print(f"VPS monta os .mp4 com videos_base/ automaticamente.")
+
+    if gerados == 0:
+        _gh_error("Nenhum bloco gerado — todos os grupos falharam.")
         sys.exit(1)
-
-    # 4. TTS
-    print("\n[4/5] Gerando áudio (TTS)...")
-    audio_path = Path(f"audio_{ts}.mp3")
-    gerar_audio(roteiro, audio_path)
-    dur = _duracao_audio(audio_path)
-    print(f"Duração do áudio: {dur // 60}min {dur % 60}s")
-
-    # 5. Encode H + V
-    print("\n[5/5] Encodando blocos H e V...")
-    bloco_h = DIR_BLOCOS / f"bloco_{ts}_h.mp4"
-    bloco_v = DIR_BLOCOS / f"bloco_{ts}_v.mp4"
-
-    montar_bloco(audio_path, bloco_h, dur, "1920x1080", DIR_IMGS_H)
-    montar_bloco(audio_path, bloco_v, dur, "1080x1920", DIR_IMGS_V)
-    audio_path.unlink(missing_ok=True)
-
-    tam_h = bloco_h.stat().st_size // (1024 * 1024)
-    tam_v = bloco_v.stat().st_size // (1024 * 1024)
-    print(f"\n✅ Blocos prontos:")
-    print(f"   H: {bloco_h.name} ({tam_h} MB)")
-    print(f"   V: {bloco_v.name} ({tam_v} MB)")
-
-
-def _gh_error(msg: str):
-    """Emite anotação ::error:: visível na página pública do GitHub Actions."""
-    # Limpa newlines para caber em uma linha de anotação
-    linha = msg.replace("\n", " | ").replace("\r", "")[:500]
-    print(f"::error::{linha}", flush=True)
 
 
 if __name__ == "__main__":
@@ -562,7 +437,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        tb = traceback.format_exc()
-        _gh_error(f"FALHA gerar_bloco_live.py: {exc} | {tb}")
-        print(tb, flush=True)
+        _gh_error(f"FALHA: {exc}")
+        print(traceback.format_exc(), flush=True)
         sys.exit(1)
