@@ -677,8 +677,9 @@ def encerrar_live(yt, bid: str):
 # P0-B — BROADCAST AUTOMÁTICO POR CICLO (MODO PERMANENTE)
 # Broadcast encerrado pelo YouTube NÃO volta sozinho (madrugada 09→10/07
 # ficou 100% offline). Cada ciclo de 6h cria broadcast novo via API:
-# NÃO LISTADO + autoStart/autoStop, vinculado à stream key permanente,
-# vai a PÚBLICO ~5min após o go-live (não queima notificação dos vídeos).
+# NÃO LISTADO + autoStart, vinculado à stream key permanente,
+# vai a PÚBLICO ~60s após o go-live (não queima notificação dos vídeos;
+# janela curta para o público reencontrar a live rápido na virada).
 # ═══════════════════════════════════════════════════════════════════════
 
 # Fórmula de título aprovada: [La Morenita] + [Milagro/Sanación/Liberación
@@ -782,7 +783,7 @@ def criar_broadcast_permanente(yt) -> str:
     return bid
 
 
-def _publicar_apos_golive(yt, bid: str, espera_seg: int = 300, timeout_seg: int = 1800):
+def _publicar_apos_golive(yt, bid: str, espera_seg: int = 60, timeout_seg: int = 1800):
     """Espera o broadcast entrar AO VIVO (autoStart) e o torna PÚBLICO após
     espera_seg. Contorno: a API de lives não tem notifySubscribers — o go-live
     acontece NÃO LISTADO (não dispara sino) e a troca posterior de visibilidade
