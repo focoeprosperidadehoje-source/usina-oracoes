@@ -361,17 +361,24 @@ def _proximo_bloco() -> tuple[Path, Path]:
     log.info(f"Próximo bloco: {h.name}")
     return h, v
 
-def _construir_playlist_ciclo(blocos: list, duracao_seg: int, tipo: str) -> Path:
+def _construir_playlist_ciclo(blocos: list, duracao_seg: int, tipo: str,
+                              inicio: int | None = None) -> Path:
     """Cria playlist ffconcat em BASE_DIR cobrindo duracao_seg com blocos em loop.
     tipo: 'h' ou 'v'. Entradas relativas a BASE_DIR (onde FFmpeg é executado).
-    FFmpeg concat + ffconcat header: paths relativos à pasta do arquivo playlist."""
+    FFmpeg concat + ffconcat header: paths relativos à pasta do arquivo playlist.
+    P0-C (BUG 13): inicia do índice rotativo global (não de blocos[0]) — após
+    crash ou novo ciclo o espectador não volta a ouvir o primeiro bloco."""
+    global _rotation_idx
+    if inicio is None:
+        inicio = _rotation_idx % len(blocos)
+        _rotation_idx = (_rotation_idx + 1) % len(blocos)
     playlist = BASE_DIR / f"_playlist_{tipo}.txt"
     linhas   = ["ffconcat version 1.0"]
     total    = 0
     idx      = 0
     margem   = 1800  # 30 min extra de segurança
     while total < duracao_seg + margem:
-        h_path, v_path = blocos[idx % len(blocos)]
+        h_path, v_path = blocos[(inicio + idx) % len(blocos)]
         path = h_path if tipo == "h" else v_path
         try:
             rel = path.relative_to(BASE_DIR)
@@ -382,7 +389,7 @@ def _construir_playlist_ciclo(blocos: list, duracao_seg: int, tipo: str) -> Path
         idx   += 1
     playlist.write_text("\n".join(linhas))
     n = len(linhas) - 1
-    log.info(f"Playlist {tipo.upper()}: {n} entradas, ~{total // 60}min estimados → {playlist.name}")
+    log.info(f"Playlist {tipo.upper()}: {n} entradas (início no bloco #{inicio}), ~{total // 60}min estimados → {playlist.name}")
     return playlist
 
 
@@ -667,6 +674,173 @@ def encerrar_live(yt, bid: str):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# P0-B — BROADCAST AUTOMÁTICO POR CICLO (MODO PERMANENTE)
+# Broadcast encerrado pelo YouTube NÃO volta sozinho (madrugada 09→10/07
+# ficou 100% offline). Cada ciclo de 6h cria broadcast novo via API:
+# NÃO LISTADO + autoStart/autoStop, vinculado à stream key permanente,
+# vai a PÚBLICO ~5min após o go-live (não queima notificação dos vídeos).
+# ═══════════════════════════════════════════════════════════════════════
+
+# Fórmula de título aprovada: [La Morenita] + [Milagro/Sanación/Liberación
+# conforme pilar do dia] + urgência. Nunca genérico. (weekday: 0=lunes)
+TITULOS_LIVE = {
+    0: "🔴 La Morenita Te Protege AHORA de Todo Ataque — Oración Poderosa EN VIVO",
+    1: "🔴 La Morenita Rompe HOY Esa Atadura — Liberación Poderosa EN VIVO",
+    2: "🔴 La Morenita Restaura Tu Familia HOY — Milagro de Reconciliación EN VIVO",
+    3: "🔴 La Morenita Abre HOY Puertas Cerradas — Milagro de Providencia EN VIVO",
+    4: "🔴 La Morenita Sana Tu Cuerpo AHORA — Milagro de Sanación EN VIVO",
+    5: "🔴 El Manto de La Morenita Te Cubre AHORA — Protección y Milagros EN VIVO",
+    6: "🔴 La Morenita Tiene un Milagro para Ti HOY — Recíbelo EN VIVO",
+}
+
+DESCRICAO_LIVE = (
+    "🙏 Transmisión continua de oración con Nuestra Señora de Guadalupe, La Morenita.\n\n"
+    "Deja tu pedido en los comentarios — tu Madre del Cielo te está escuchando.\n\n"
+    "💝 Apoya esta misión de oración continua:\n"
+    "👉 https://www.paypal.com/donate/?hosted_button_id=P5E5EBVM2HWGS\n\n"
+    "📿 Artículos bendecidos:\n"
+    "• Rosario de Guadalupe → https://amzn.to/40ewSZU\n"
+    "• Biblia Letra Súper Gigante → https://amzn.to/4afDGLy\n\n"
+    "🔔 Activa la campanita · 👍 Dale like · ➡️ Visita el canal"
+)
+
+_stream_id_cache = {"id": None}
+
+
+def _titulo_live_do_dia() -> str:
+    return TITULOS_LIVE[datetime.now(FUSO).weekday()]
+
+
+def _stream_id_da_chave(yt) -> str:
+    """Localiza o liveStream ID da stream key permanente (cacheado).
+    Aceita override via STREAM_ID_H no .env caso a key default não seja
+    listável pela API."""
+    if _stream_id_cache["id"]:
+        return _stream_id_cache["id"]
+    sid_env = os.environ.get("STREAM_ID_H", "")
+    if sid_env:
+        _stream_id_cache["id"] = sid_env
+        return sid_env
+    resp  = yt.liveStreams().list(part="id,cdn", mine=True, maxResults=50).execute()
+    itens = resp.get("items", [])
+    for item in itens:
+        nome = item.get("cdn", {}).get("ingestionInfo", {}).get("streamName", "")
+        if nome == STREAM_KEY_H:
+            _stream_id_cache["id"] = item["id"]
+            return item["id"]
+    if len(itens) == 1:
+        sid = itens[0]["id"]
+        log.warning(f"STREAM_KEY_H não achada por nome — usando único liveStream da conta ({sid})")
+        _stream_id_cache["id"] = sid
+        return sid
+    raise RuntimeError(
+        f"liveStream da STREAM_KEY_H não encontrado ({len(itens)} streams na conta) "
+        "— defina STREAM_ID_H no .env"
+    )
+
+
+def criar_broadcast_permanente(yt) -> str:
+    """Cria broadcast NÃO LISTADO com autoStart/autoStop, vinculado à stream
+    key permanente. Idioma do vídeo = espanhol (ativa legendas automáticas)."""
+    titulo = _titulo_live_do_dia()
+    broadcast = yt.liveBroadcasts().insert(
+        part="snippet,status,contentDetails",
+        body={
+            "snippet": {
+                "title": titulo,
+                "description": DESCRICAO_LIVE,
+                "scheduledStartTime": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+            "status": {
+                "privacyStatus": "unlisted",
+                "selfDeclaredMadeForKids": False,
+            },
+            "contentDetails": {
+                "enableAutoStart": True,
+                "enableAutoStop": True,
+                "latencyPreference": "normal",
+                "monitorStream": {"enableMonitorStream": False},
+                "selfDeclaredMadeWithAlteredContent": True,
+            },
+        },
+    ).execute()
+    bid = broadcast["id"]
+    yt.liveBroadcasts().bind(part="id,contentDetails", id=bid,
+                             streamId=_stream_id_da_chave(yt)).execute()
+    try:
+        snip = yt.videos().list(part="snippet", id=bid).execute()["items"][0]["snippet"]
+        snip["defaultLanguage"]      = "es"
+        snip["defaultAudioLanguage"] = "es"
+        yt.videos().update(part="snippet", body={"id": bid, "snippet": snip}).execute()
+    except Exception as e:
+        log.warning(f"idioma do broadcast {bid}: {e}")
+    log.info(f"Broadcast criado (não listado, autoStart): {bid} — {titulo}")
+    return bid
+
+
+def _publicar_apos_golive(yt, bid: str, espera_seg: int = 300, timeout_seg: int = 1800):
+    """Espera o broadcast entrar AO VIVO (autoStart) e o torna PÚBLICO após
+    espera_seg. Contorno: a API de lives não tem notifySubscribers — o go-live
+    acontece NÃO LISTADO (não dispara sino) e a troca posterior de visibilidade
+    normalmente não notifica. VALIDAR empiricamente no 1º ciclo."""
+    t0 = time.time()
+    ao_vivo = False
+    while time.time() - t0 < timeout_seg:
+        if _ev_parar.wait(timeout=30):
+            return
+        try:
+            itens = yt.liveBroadcasts().list(part="status", id=bid).execute().get("items", [])
+            if not itens:
+                log.warning(f"publicar: broadcast {bid} não encontrado")
+                return
+            st = itens[0]["status"]["lifeCycleStatus"]
+            if st == "live":
+                ao_vivo = True
+                break
+            if st in ("complete", "revoked"):
+                log.warning(f"publicar: broadcast {bid} já encerrado ({st})")
+                return
+        except Exception as e:
+            log.warning(f"publicar: poll {bid}: {e}")
+    if not ao_vivo:
+        log.warning(f"publicar: {bid} não entrou ao vivo em {timeout_seg // 60}min — permanece não listado")
+        return
+    if _ev_parar.wait(timeout=espera_seg):
+        return
+    try:
+        yt.liveBroadcasts().update(
+            part="status",
+            body={"id": bid, "status": {"privacyStatus": "public",
+                                        "selfDeclaredMadeForKids": False}},
+        ).execute()
+        log.info(f"Broadcast {bid} agora PÚBLICO (go-live foi não listado — validar sino)")
+    except Exception as e:
+        log.error(f"publicar: falha ao tornar {bid} público: {e}")
+
+
+def _finalizar_broadcast(yt, bid: str):
+    """Encerra o broadcast do ciclo (salva VOD) e insere o VOD na playlist de
+    lives (playlistItems.insert é silencioso — não notifica)."""
+    try:
+        yt.liveBroadcasts().transition(broadcastStatus="complete", id=bid,
+                                       part="id,status").execute()
+        log.info(f"Broadcast {bid} encerrado — VOD em processamento.")
+    except Exception as e:
+        log.warning(f"finalizar {bid}: transition ({e}) — autoStop pode já ter encerrado")
+    try:
+        yt.playlistItems().insert(
+            part="snippet",
+            body={"snippet": {
+                "playlistId": PLAYLIST_LIVES,
+                "resourceId": {"kind": "youtube#video", "videoId": bid},
+            }},
+        ).execute()
+        log.info(f"VOD {bid} adicionado à playlist de lives.")
+    except Exception as e:
+        log.warning(f"finalizar {bid}: playlistItems.insert ({e})")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # FFMPEG — STREAMING
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -880,7 +1054,11 @@ def _montar_bloco_h(audio: Path) -> Path:
         "crop=1920:1080,setsar=1,fps=30[vout]"
     )
 
+    # P0-A (BUG 14): nice -n 19 + -threads 2 — o Assembler NUNCA disputa CPU
+    # com o transmissor. Encode saturava as 4 vCPU -> FFmpeg H caía abaixo de
+    # 1.0x -> YouTube encerrava o broadcast a cada workflow (3x/dia).
     cmd = [
+        "nice", "-n", "19",
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0", "-i", str(concat_file),
         "-i", str(audio),
@@ -891,10 +1069,12 @@ def _montar_bloco_h(audio: Path) -> Path:
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
+        "-threads", "2",
         str(saida),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+    # timeout ampliado: com -threads 2 + nice o encode pode levar bem mais tempo
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=2700)
     concat_file.unlink(missing_ok=True)
     if result.returncode != 0:
         saida.unlink(missing_ok=True)
@@ -1022,6 +1202,16 @@ def loop_transmissor():
             _estado["live_id_h"] = BROADCAST_ID_H
             _estado["live_id_v"] = BROADCAST_ID_V
 
+        # P0-B: cliente YouTube para auto-recriação de broadcast a cada ciclo.
+        # Sem API o stream continua, mas se o YouTube encerrar o broadcast o
+        # canal fica offline até intervenção manual (madrugada 09→10/07).
+        yt = None
+        try:
+            yt = get_youtube()
+            log.info("YouTube API OK — broadcast novo a cada ciclo de 6h.")
+        except Exception as e:
+            log.error(f"YouTube API indisponível ({e}) — SEM auto-broadcast!")
+
         while not _ev_parar.is_set():
             ciclo += 1
             log.info(f"Transmissor — ciclo {ciclo} de 6h (playlist contínua — sem gap entre blocos)")
@@ -1036,6 +1226,18 @@ def loop_transmissor():
             if _ev_parar.is_set():
                 break
 
+            # P0-B: broadcast novo (não listado, autoStart) ANTES do FFmpeg subir
+            bid_h = None
+            if yt:
+                try:
+                    bid_h = criar_broadcast_permanente(yt)
+                    with _lock:
+                        _estado["live_id_h"] = bid_h
+                    threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h),
+                                     name="PublicaLive", daemon=True).start()
+                except Exception as e:
+                    log.error(f"criar_broadcast_permanente: {e} — ciclo segue só com a stream key")
+
             # Construir playlists cobrindo 6h (blocos repetidos em loop se necessário)
             playlist_h = _construir_playlist_ciclo(blocos, DURACAO_CICLO_SEG, "h")
             proc_h     = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
@@ -1047,7 +1249,8 @@ def loop_transmissor():
                                                      "1080x1920", "2500k", "V")
 
             # Monitorar ciclo de 6h sem reiniciar FFmpeg entre blocos
-            ciclo_start = time.time()
+            ciclo_start     = time.time()
+            ultimo_check_bc = time.time()
             try:
                 while not _ev_parar.is_set():
                     elapsed = time.time() - ciclo_start
@@ -1071,6 +1274,24 @@ def loop_transmissor():
                             proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
                                                              "1080x1920", "2500k", "V")
 
+                    # P0-B: watchdog do broadcast — se o YouTube encerrar no
+                    # meio do ciclo, cria outro (autoStart religa sozinho)
+                    if yt and bid_h and (time.time() - ultimo_check_bc) >= 120:
+                        ultimo_check_bc = time.time()
+                        try:
+                            itens = yt.liveBroadcasts().list(part="status", id=bid_h).execute().get("items", [])
+                            st = itens[0]["status"]["lifeCycleStatus"] if itens else "revoked"
+                            if st in ("complete", "revoked"):
+                                log.warning(f"Broadcast {bid_h} encerrado no meio do ciclo — criando novo")
+                                _finalizar_broadcast(yt, bid_h)
+                                bid_h = criar_broadcast_permanente(yt)
+                                with _lock:
+                                    _estado["live_id_h"] = bid_h
+                                threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h),
+                                                 name="PublicaLive", daemon=True).start()
+                        except Exception as e:
+                            log.warning(f"watchdog broadcast: {e}")
+
                     _ev_parar.wait(timeout=10)
             finally:
                 _matar_proc(proc_h, "H")
@@ -1078,6 +1299,12 @@ def loop_transmissor():
                 with _lock:
                     _estado["proc_h"] = None
                     _estado["proc_v"] = None
+
+            # P0-B: encerra broadcast (salva VOD) + insere VOD na playlist
+            if yt and bid_h:
+                _finalizar_broadcast(yt, bid_h)
+                with _lock:
+                    _estado["live_id_h"] = None
 
             if _ev_parar.is_set():
                 break
