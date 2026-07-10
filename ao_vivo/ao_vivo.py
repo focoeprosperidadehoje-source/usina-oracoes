@@ -757,7 +757,11 @@ def criar_broadcast_permanente(yt) -> str:
             },
             "contentDetails": {
                 "enableAutoStart": True,
-                "enableAutoStop": True,
+                # autoStop DESLIGADO (10/07): com ele, soluço de 30s de rede
+                # encerrava o broadcast em ~20s e matava a URL da live.
+                # O fim de ciclo já encerra explicitamente via transition;
+                # o watchdog cobre encerramentos feitos pelo YouTube.
+                "enableAutoStop": False,
                 "latencyPreference": "normal",
                 "monitorStream": {"enableMonitorStream": False},
                 "selfDeclaredMadeWithAlteredContent": True,
@@ -1241,7 +1245,7 @@ def loop_transmissor():
             # Construir playlists cobrindo 6h (blocos repetidos em loop se necessário)
             playlist_h = _construir_playlist_ciclo(blocos, DURACAO_CICLO_SEG, "h")
             proc_h     = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
-                                                 "1920x1080", "3500k", "H")
+                                                 "1920x1080", "3000k", "H")
             playlist_v = None
             if sk_v_ativo:
                 playlist_v = _construir_playlist_ciclo(blocos, DURACAO_CICLO_SEG, "v")
@@ -1266,7 +1270,7 @@ def loop_transmissor():
                             resto = max(DURACAO_CICLO_SEG - int(elapsed), 1800)
                             playlist_h = _construir_playlist_ciclo(blocos_atuais, resto, "h")
                         proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
-                                                         "1920x1080", "3500k", "H")
+                                                         "1920x1080", "3000k", "H")
 
                     if proc_v and proc_v.poll() is not None:
                         log.warning("FFmpeg V encerrou — recriando")
