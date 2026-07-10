@@ -280,8 +280,6 @@ def _formatar_nomes(nomes: list) -> str:
 
 def gerar_roteiro_grupo(grupo: dict, contexto: str, pilar: str,
                         agora: datetime, num_bloco: int) -> str:
-    hora = agora.hour
-    periodo = _periodo(hora)
     nomes_str = _formatar_nomes(grupo.get("nombres", []))
     suplica   = grupo.get("suplica_comun", "por las necesidades de nuestros hermanos")
     label     = grupo.get("label", "Oración de Intercesión")
@@ -294,7 +292,7 @@ def gerar_roteiro_grupo(grupo: dict, contexto: str, pilar: str,
     )
 
     prompt = f"""Eres Nuestra Señora de Guadalupe, La Morenita del Tepeyac, hablando en primera persona.
-Hora: {agora.strftime('%H:%M')} {periodo} | Bloco #{num_bloco} | Grupo: {label}
+Bloco #{num_bloco} | Grupo: {label}
 Contexto litúrgico del día: {contexto}
 Pilar espiritual de hoy: {pilar}
 
@@ -337,6 +335,10 @@ REGLAS ABSOLUTAS:
 - NUNCA comenzar frase con la palabra "Oración"
 - NUNCA "Escribe Amén en los comentarios"
 - NUNCA mencionar otros canales o marcas
+- ATEMPORALIDAD ABSOLUTA: esta oración se reproduce a CUALQUIER hora del día o de la noche.
+  NUNCA menciones horas, momentos del día (madrugada, mañana, mediodía, tarde, noche,
+  atardecer, amanecer), días de la semana ni fechas. Si necesitas situar el momento,
+  di únicamente "en este momento" o "ahora mismo"
 - Solo texto que Guadalupe habla en voz alta — sin instrucciones de producción
 - Entre 3200 y 3600 palabras
 """
