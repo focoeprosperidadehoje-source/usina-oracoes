@@ -21,7 +21,7 @@ import threading
 import subprocess
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from io import BytesIO
 
@@ -740,6 +740,74 @@ def _stream_id_da_chave(yt) -> str:
     )
 
 
+def adotar_broadcast_ativo(yt) -> str | None:
+    """BUG 15: localiza um broadcast JÁ AO VIVO no canal (sobrevivente de
+    restart do serviço ou de transition que falhou) e o adota como broadcast
+    do ciclo, em vez de criar um órfão novo. Prioriza o broadcast vinculado
+    à stream key permanente. Retorna o ID, ou None se não há live ativa."""
+    try:
+        resp = yt.liveBroadcasts().list(
+            part="id,status,contentDetails,snippet",
+            broadcastStatus="active", broadcastType="all", maxResults=5,
+        ).execute()
+        itens = resp.get("items", [])
+    except Exception as e:
+        log.warning(f"adotar_broadcast_ativo: list ({e})")
+        return None
+    if not itens:
+        return None
+    sid = ""
+    try:
+        sid = _stream_id_da_chave(yt)
+    except Exception:
+        pass
+    alvo = itens[0]
+    for item in itens:
+        if item.get("contentDetails", {}).get("boundStreamId", "") == sid:
+            alvo = item
+            break
+    bid    = alvo["id"]
+    priv   = alvo.get("status", {}).get("privacyStatus", "?")
+    titulo = alvo.get("snippet", {}).get("title", "")[:60]
+    log.info(f"Broadcast ATIVO adotado: {bid} ({priv}) — {titulo}")
+    return bid
+
+
+def _limpar_orfaos(yt, max_del: int = 15, idade_min_h: int = 3):
+    """BUG 15: apaga broadcasts 'Programado' órfãos — criados por ciclos
+    anteriores mas que nunca entraram ao vivo (autoStart não dispara enquanto
+    um broadcast antigo segue vivo na mesma stream). Só apaga órfãos com mais
+    de idade_min_h horas, preservando o broadcast do ciclo corrente.
+    Cota: list 1 + delete 50/un — só age quando há lixo acumulado."""
+    try:
+        resp = yt.liveBroadcasts().list(
+            part="id,snippet", broadcastStatus="upcoming",
+            broadcastType="all", maxResults=50,
+        ).execute()
+        itens = resp.get("items", [])
+    except Exception as e:
+        log.warning(f"limpar_orfaos: list ({e})")
+        return
+    agora = datetime.now(timezone.utc)
+    n = 0
+    for item in itens:
+        if n >= max_del:
+            break
+        sched = item.get("snippet", {}).get("scheduledStartTime", "")
+        try:
+            t = datetime.strptime(sched[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+        if (agora - t).total_seconds() < idade_min_h * 3600:
+            continue
+        try:
+            yt.liveBroadcasts().delete(id=item["id"]).execute()
+            log.info(f"Órfão apagado: {item['id']} (programado para {sched})")
+            n += 1
+        except Exception as e:
+            log.warning(f"limpar_orfaos: delete {item['id']} ({e})")
+
+
 def criar_broadcast_permanente(yt) -> str:
     """Cria broadcast NÃO LISTADO com autoStart/autoStop, vinculado à stream
     key permanente. Idioma do vídeo = espanhol (ativa legendas automáticas)."""
@@ -1231,17 +1299,21 @@ def loop_transmissor():
             if _ev_parar.is_set():
                 break
 
-            # P0-B: broadcast novo (não listado, autoStart) ANTES do FFmpeg subir
+            # P0-B/BUG15: adota broadcast JÁ AO VIVO (sobrevivente de restart ou
+            # de transition falha) ou cria um novo. Limpa órfãos "Programado".
             bid_h = None
             if yt:
                 try:
-                    bid_h = criar_broadcast_permanente(yt)
+                    _limpar_orfaos(yt)
+                    bid_h = adotar_broadcast_ativo(yt)
+                    if not bid_h:
+                        bid_h = criar_broadcast_permanente(yt)
                     with _lock:
                         _estado["live_id_h"] = bid_h
                     threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h),
                                      name="PublicaLive", daemon=True).start()
                 except Exception as e:
-                    log.error(f"criar_broadcast_permanente: {e} — ciclo segue só com a stream key")
+                    log.error(f"broadcast do ciclo: {e} — ciclo segue só com a stream key")
 
             # Construir playlists cobrindo 6h (blocos repetidos em loop se necessário)
             playlist_h = _construir_playlist_ciclo(blocos, DURACAO_CICLO_SEG, "h")
@@ -1305,9 +1377,17 @@ def loop_transmissor():
                     _estado["proc_h"] = None
                     _estado["proc_v"] = None
 
-            # P0-B: encerra broadcast (salva VOD) + insere VOD na playlist
-            if yt and bid_h:
-                _finalizar_broadcast(yt, bid_h)
+            # P0-B/BUG15: encerra o broadcast REALMENTE ativo (não o bid_h cego).
+            # Se um broadcast antigo seguiu vivo (restart/transition falha), é ELE
+            # que precisa do transition complete — senão nunca vira VOD e os novos
+            # jamais disparam autoStart (Invalid transition em loop, 10-12/07).
+            if yt:
+                try:
+                    bid_fim = adotar_broadcast_ativo(yt) or bid_h
+                except Exception:
+                    bid_fim = bid_h
+                if bid_fim:
+                    _finalizar_broadcast(yt, bid_fim)
                 with _lock:
                     _estado["live_id_h"] = None
 
