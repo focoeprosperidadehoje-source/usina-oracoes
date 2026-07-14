@@ -264,12 +264,53 @@ for video in grade_para_processar:
         d_match = re.search(r'DESC:\s*(.*?)(?=TAGS:|T[IÍ]TULO:|THUMB:|GUI[OÓ]N:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         tg_match = re.search(r'TAGS:\s*(.*?)(?=T[IÍ]TULO:|THUMB:|GUI[OÓ]N:|DESC:|$)', texto_ia, re.IGNORECASE | re.DOTALL)
         
-        titulo_final = t_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if t_match else "Título Padrão"
-        thumb_final = th_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if th_match else "ORACIÓN PODEROSA"
+        titulo_final = t_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if t_match else ""
+        thumb_final = th_match.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip() if th_match else ""
         roteiro_final = g_match.group(1).strip() if g_match else texto_ia 
-        desc_final = d_match.group(1).strip() if d_match else "Descripción Padrão"
-        tags_final = tg_match.group(1).replace('*', '').replace('[', '').replace(']', '').strip() if tg_match else "Tags"
+        desc_final = d_match.group(1).strip() if d_match else ""
+        tags_final = tg_match.group(1).replace('*', '').replace('[', '').replace(']', '').strip() if tg_match else ""
         
+        # ═══ PORTÃO DE QUALIDADE (12/07/2026) — texto genérico NUNCA entra ═══
+        # Campo fora do formato: 1 retentativa com lembrete; persistindo,
+        # fallback determinístico derivado do tema (nunca "Título Padrão").
+        if not titulo_final or len(titulo_final) < 10 or not thumb_final or not desc_final:
+            print("   ⚠️ Campos fora do formato — retentativa com lembrete de formato...")
+            lembrete = (prompt_principal + "\n\nATENCIÓN: tu respuesta anterior vino SIN el "
+                        "FORMATO EXACTO. Responde OBLIGATORIAMENTE con las 5 etiquetas "
+                        "TITULO:, THUMB:, GUION:, DESC:, TAGS: — cada una presente.")
+            texto2 = None
+            for i in range(5):
+                try:
+                    texto2 = _gerar(modelos_cascata[i], lembrete)
+                    break
+                except: time.sleep(esperas_exponenciais[i])
+            if texto2:
+                t2  = re.search(r'T[IÍ]TULO:\s*(.*?)(?=THUMB:|GUI[OÓ]N:|DESC:|TAGS:|$)', texto2, re.IGNORECASE | re.DOTALL)
+                th2 = re.search(r'THUMB:\s*(.*?)(?=GUI[OÓ]N:|DESC:|TAGS:|T[IÍ]TULO:|$)', texto2, re.IGNORECASE | re.DOTALL)
+                g2  = re.search(r'GUI[OÓ]N:\s*(.*?)(?=DESC:|TAGS:|T[IÍ]TULO:|THUMB:|$)', texto2, re.IGNORECASE | re.DOTALL)
+                d2  = re.search(r'DESC:\s*(.*?)(?=TAGS:|T[IÍ]TULO:|THUMB:|GUI[OÓ]N:|$)', texto2, re.IGNORECASE | re.DOTALL)
+                tg2 = re.search(r'TAGS:\s*(.*?)(?=T[IÍ]TULO:|THUMB:|GUI[OÓ]N:|DESC:|$)', texto2, re.IGNORECASE | re.DOTALL)
+                if t2 and (not titulo_final or len(titulo_final) < 10):
+                    titulo_final = t2.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip()
+                if th2 and not thumb_final:
+                    thumb_final = th2.group(1).replace('*', '').replace('"', '').replace('[', '').replace(']', '').strip()
+                if g2 and (not roteiro_final or len(roteiro_final.split()) < 700):
+                    roteiro_final = g2.group(1).strip()
+                if d2 and not desc_final:
+                    desc_final = d2.group(1).strip()
+                if tg2 and not tags_final:
+                    tags_final = tg2.group(1).replace('*', '').replace('[', '').replace(']', '').strip()
+        if not titulo_final or len(titulo_final) < 10:
+            titulo_final = f"{tema_gerado} - {titulo_sufixo}"
+        if not thumb_final:
+            thumb_final = " ".join(tema_gerado.split()[:4]).upper()
+        if not desc_final or len(desc_final) < 80:
+            desc_final = (f"{tema_gerado}. Una oración poderosa dirigida a {persona_prompt} en tu {titulo_sufixo.lower()}. "
+                          f"Únete a esta oración, deja tu petición en los comentarios y permite que la fe transforme tu día. "
+                          f"Comparte esta oración con alguien que la necesite y activa la campanita para no perderte ninguna oración.")
+        if not tags_final:
+            tags_final = f"oración, fe, protección divina, sanación, {('jesús, cristo' if persona == 'JESUS' else 'virgen de guadalupe, la morenita')}"
+
         nova_linha =[str(data_alvo), horario, "Pronto p/ Áudio", persona, idioma, tema_gerado, titulo_final, roteiro_final, tags_final, desc_final, "Pendente", thumb_final]
         aba.update(values=[nova_linha], range_name=f"A{proxima_linha_vazia}:L{proxima_linha_vazia}")
         print(f"   ✅ SUCESSO! Linha {proxima_linha_vazia} preenchida.")

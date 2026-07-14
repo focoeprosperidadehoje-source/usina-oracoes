@@ -279,7 +279,8 @@ def _formatar_nomes(nomes: list) -> str:
     return ", ".join(nomes[:-1]) + f" y {nomes[-1]}"
 
 def gerar_roteiro_grupo(grupo: dict, contexto: str, pilar: str,
-                        agora: datetime, num_bloco: int) -> str:
+                        agora: datetime, num_bloco: int,
+                        so_full: bool = False) -> str:
     nomes_str = _formatar_nomes(grupo.get("nombres", []))
     suplica   = grupo.get("suplica_comun", "por las necesidades de nuestros hermanos")
     label     = grupo.get("label", "Oración de Intercesión")
@@ -343,12 +344,50 @@ REGLAS ABSOLUTAS:
 - Entre 3200 y 3600 palabras
 """
 
-    texto = _chamar_gemini(prompt, MODELOS_FULL, max_tokens=8192)
+    modelos = ["gemini-2.5-flash"] if so_full else MODELOS_FULL
+    texto = _chamar_gemini(prompt, modelos, max_tokens=8192)
     texto = re.sub(r'\*+', '', texto)
     texto = re.sub(r'#{1,6}\s+', '', texto)
     texto = re.sub(r'^\s*[-•]\s+', '', texto, flags=re.MULTILINE)
     texto = re.sub(r'\n{3,}', '\n\n', texto)
     return texto.strip()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PORTÃO DE QUALIDADE (12/07/2026)
+# ═══════════════════════════════════════════════════════════════════════
+
+def motivo_degeneracao(texto: str) -> str | None:
+    """Detecta roteiro degenerado ANTES do TTS. Caso real 12/07: o modelo
+    lite entrou em loop e gerou 27+ min de pares de nomes que foram ao ar.
+    Retorna o motivo da reprovação, ou None se o roteiro está saudável."""
+    palavras = texto.split()
+    n = len(palavras)
+    if n < 1800:
+        return f"muito curto ({n} palavras)"
+    if n > 5200:
+        return f"muito longo ({n} palavras — provável loop)"
+    # 1. Trigrama dominante: loops repetem a mesma sequência dezenas de vezes
+    tri = {}
+    for i in range(n - 2):
+        t = (palavras[i].lower(), palavras[i + 1].lower(), palavras[i + 2].lower())
+        tri[t] = tri.get(t, 0) + 1
+    max_tri = max(tri.values()) if tri else 0
+    if max_tri > 25:
+        return f"trigrama repetido {max_tri}x (loop)"
+    # 2. Densidade de vírgulas: lista de nomes é carregada de vírgulas
+    if texto.count(",") / max(n, 1) > 0.14:
+        return "densidade de vírgulas típica de lista de nomes"
+    # 3. Frase idêntica (>5 palavras) repetida 4+ vezes
+    frases = {}
+    for f in re.split(r"[.!?…]+", texto):
+        f = f.strip().lower()
+        if len(f.split()) > 5:
+            frases[f] = frases.get(f, 0) + 1
+    max_frase = max(frases.values()) if frases else 0
+    if max_frase >= 4:
+        return f"frase idêntica repetida {max_frase}x"
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -410,9 +449,18 @@ def main():
             palavras = len(roteiro.split())
             print(f"  Roteiro: {palavras} palavras")
 
-            if palavras < 1800:
-                print(f"  [WARN] Roteiro muito curto — pulando")
-                continue
+            # PORTÃO DE QUALIDADE: nada degenerado passa para o TTS
+            motivo = motivo_degeneracao(roteiro)
+            if motivo:
+                print(f"  [WARN] Roteiro reprovado ({motivo}) — refazendo com modelo full...")
+                roteiro = gerar_roteiro_grupo(grupo, contexto, pilar, agora,
+                                              num_bloco, so_full=True)
+                palavras = len(roteiro.split())
+                motivo = motivo_degeneracao(roteiro)
+                if motivo:
+                    print(f"  [ERRO] Reprovado de novo ({motivo}) — bloco descartado")
+                    continue
+                print(f"  Roteiro (full): {palavras} palavras — aprovado")
 
             ts      = f"{ts_base}_{i+1:02d}"
             destino = DIR_BLOCOS / f"audio_{ts}.mp3"
