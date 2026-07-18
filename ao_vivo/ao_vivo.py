@@ -100,6 +100,9 @@ DURACAO_BLOCO_SEG    = 27 * 60       # 27min — duração de cada bloco base
 DURACAO_SUPLICA_SEG  = 160           # ~2.7min — estimativa de súplica
 SUPLICA_GERAR_OFFSET = 22 * 60       # iniciar geração da súplica em T+22min no bloco
 TRANSICAO_ANTECIP    = 90            # append próximo conteúdo 90s antes do fim do bloco
+ROLLING_INICIAIS    = 3              # blocos na playlist inicial (rolling)
+ROLLING_ANTECIPACAO = 600            # appendar quando buffer < 10min
+SUPLICA_INTERVAL    = 30 * 60        # gerar súplica a cada 30min
 DURACAO_CICLO_SEG    = 6 * 3600      # 6h por broadcast
 BLOCOS_MINIMOS       = 1             # mínimo de blocos para iniciar transmissão
 
@@ -391,6 +394,26 @@ def _construir_playlist_ciclo(blocos: list, duracao_seg: int, tipo: str,
     n = len(linhas) - 1
     log.info(f"Playlist {tipo.upper()}: {n} entradas (início no bloco #{inicio}), ~{total // 60}min estimados → {playlist.name}")
     return playlist
+
+
+def _construir_playlist_rolling(blocos: list, rot_idx: int, n: int, tipo: str):
+    """Cria playlist ffconcat com n blocos iniciais para rolling.
+    Retorna (playlist_path, rot_idx_apos, dur_total_s)."""
+    playlist = BASE_DIR / f"_playlist_{tipo}.txt"
+    linhas = ["ffconcat version 1.0"]
+    dur = 0.0
+    for i in range(n):
+        h, v = blocos[(rot_idx + i) % len(blocos)]
+        path = h if tipo == "h" else v
+        try:
+            rel = path.relative_to(BASE_DIR)
+        except ValueError:
+            rel = path
+        linhas.append(f"file '{rel}'")
+        dur += DURACAO_BLOCO_SEG
+    playlist.write_text("\n".join(linhas))
+    log.info(f"Playlist {tipo.upper()} rolling: {n} blocos, {dur/60:.0f}min buffer")
+    return playlist, (rot_idx + n) % len(blocos), dur
 
 
 def _resetar_playlist(path: Path, primeiro: Path):
@@ -1315,19 +1338,26 @@ def loop_transmissor():
                 except Exception as e:
                     log.error(f"broadcast do ciclo: {e} — ciclo segue só com a stream key")
 
-            # Construir playlists cobrindo 6h (blocos repetidos em loop se necessário)
-            playlist_h = _construir_playlist_ciclo(blocos, DURACAO_CICLO_SEG, "h")
-            proc_h     = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
-                                                 "1920x1080", "3000k", "H")
+            # Rolling playlist: ROLLING_INICIAIS blocos iniciais;
+            # thread principal appenda novos blocos (e súplicas) conforme o buffer diminui.
+            rot_idx_h = _rotation_idx % len(blocos)
+            playlist_h, rot_idx_h, buf_h = _construir_playlist_rolling(
+                blocos, rot_idx_h, ROLLING_INICIAIS, "h")
+            proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
+                                             "1920x1080", "3000k", "H")
             playlist_v = None
+            buf_v      = 0.0
             if sk_v_ativo:
-                playlist_v = _construir_playlist_ciclo(blocos, DURACAO_CICLO_SEG, "v")
-                proc_v     = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
-                                                     "1080x1920", "2500k", "V")
+                rot_idx_v0 = _rotation_idx % len(blocos)
+                playlist_v, _, buf_v = _construir_playlist_rolling(
+                    blocos, rot_idx_v0, ROLLING_INICIAIS, "v")
+                proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
+                                                 "1080x1920", "2500k", "V")
 
-            # Monitorar ciclo de 6h sem reiniciar FFmpeg entre blocos
             ciclo_start     = time.time()
             ultimo_check_bc = time.time()
+            # 1ª súplica dispara em ~5min (não esperar 30min na 1ª vez)
+            ultimo_suplica  = ciclo_start - (SUPLICA_INTERVAL - 5 * 60)
             try:
                 while not _ev_parar.is_set():
                     elapsed = time.time() - ciclo_start
@@ -1335,24 +1365,68 @@ def loop_transmissor():
                         log.info(f"Ciclo {ciclo}: 6h completas — encerrando FFmpeg para salvar VOD.")
                         break
 
+                    # Watchdog FFmpeg H
                     if proc_h.poll() is not None:
-                        # FFmpeg encerrou antes do fim (crash ou fim da playlist)
-                        log.warning("FFmpeg H encerrou antes do fim do ciclo — recriando playlist e reiniciando")
+                        log.warning("FFmpeg H encerrou — reconstruindo rolling e reiniciando")
                         blocos_atuais = listar_blocos()
                         if blocos_atuais:
-                            resto = max(DURACAO_CICLO_SEG - int(elapsed), 1800)
-                            playlist_h = _construir_playlist_ciclo(blocos_atuais, resto, "h")
+                            playlist_h, rot_idx_h, buf_nova = _construir_playlist_rolling(
+                                blocos_atuais, rot_idx_h, ROLLING_INICIAIS, "h")
+                            buf_h = elapsed + buf_nova
                         proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
                                                          "1920x1080", "3000k", "H")
 
+                    # Watchdog FFmpeg V
                     if proc_v and proc_v.poll() is not None:
                         log.warning("FFmpeg V encerrou — recriando")
                         if sk_v_ativo and playlist_v:
+                            blocos_atuais = listar_blocos()
+                            if blocos_atuais:
+                                ri_v = _rotation_idx % len(blocos_atuais)
+                                playlist_v, _, buf_nova_v = _construir_playlist_rolling(
+                                    blocos_atuais, ri_v, ROLLING_INICIAIS, "v")
+                                buf_v = elapsed + buf_nova_v
                             proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
                                                              "1080x1920", "2500k", "V")
 
-                    # P0-B: watchdog do broadcast — se o YouTube encerrar no
-                    # meio do ciclo, cria outro (autoStart religa sozinho)
+                    # Timer de súplica (a cada SUPLICA_INTERVAL = 30min)
+                    if not _ev_suplica_gerar.is_set() and (time.time() - ultimo_suplica) >= SUPLICA_INTERVAL:
+                        _ev_suplica_gerar.set()
+                        _ev_suplica_pronta.clear()
+                        ultimo_suplica = time.time()
+                        log.info("Súplicas: disparando geração (timer 30min)")
+
+                    # Rolling append: manter ROLLING_ANTECIPACAO de buffer à frente
+                    buf_restante = buf_h - elapsed
+                    if buf_restante < ROLLING_ANTECIPACAO:
+                        # Inserir súplica pronta antes do próximo bloco
+                        if _ev_suplica_pronta.is_set():
+                            with _lock_suplica:
+                                sh = _suplica_caminhos.get("h")
+                                sv = _suplica_caminhos.get("v")
+                                _suplica_caminhos["h"] = None
+                                _suplica_caminhos["v"] = None
+                            _ev_suplica_pronta.clear()
+                            if sh and sh.exists():
+                                _append_playlist(playlist_h, sh)
+                                buf_h += DURACAO_SUPLICA_SEG
+                                if sk_v_ativo and playlist_v and sv and sv.exists():
+                                    _append_playlist(playlist_v, sv)
+                                    buf_v += DURACAO_SUPLICA_SEG
+                                log.info(
+                                    f"Súplica inserida (buf_restante={buf_restante:.0f}s"
+                                    f" → +{DURACAO_SUPLICA_SEG}s)")
+                        # Appendar próximo bloco (sempre, para manter buffer)
+                        h_next, v_next = blocos[rot_idx_h % len(blocos)]
+                        _append_playlist(playlist_h, h_next)
+                        buf_h += DURACAO_BLOCO_SEG
+                        if sk_v_ativo and playlist_v:
+                            _append_playlist(playlist_v, v_next)
+                            buf_v += DURACAO_BLOCO_SEG
+                        rot_idx_h = (rot_idx_h + 1) % len(blocos)
+                        log.info(f"Bloco appendado: {h_next.name} (buffer: {buf_h - elapsed:.0f}s)")
+
+                    # P0-B: watchdog do broadcast
                     if yt and bid_h and (time.time() - ultimo_check_bc) >= 120:
                         ultimo_check_bc = time.time()
                         try:
