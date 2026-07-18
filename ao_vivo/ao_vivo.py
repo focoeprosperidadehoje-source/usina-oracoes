@@ -1396,27 +1396,36 @@ def loop_transmissor():
                         ultimo_suplica = time.time()
                         log.info("Súplicas: disparando geração (timer 30min)")
 
-                    # Rolling append: manter ROLLING_ANTECIPACAO de buffer à frente
+                    # Inserir suplica quando pronta — independente do buffer
+                    if _ev_suplica_pronta.is_set():
+                        with _lock_suplica:
+                            sh = _suplica_caminhos.get("h")
+                            sv = _suplica_caminhos.get("v")
+                            _suplica_caminhos["h"] = None
+                            _suplica_caminhos["v"] = None
+                        _ev_suplica_pronta.clear()
+                        if sh and sh.exists():
+                            _append_playlist(playlist_h, sh)
+                            buf_h += DURACAO_SUPLICA_SEG
+                            if sk_v_ativo and playlist_v and sv and sv.exists():
+                                _append_playlist(playlist_v, sv)
+                                buf_v += DURACAO_SUPLICA_SEG
+                            log.info(
+                                f"Suplica inserida na playlist (+{DURACAO_SUPLICA_SEG}s)"
+                                f" | buf_restante={buf_h - elapsed:.0f}s")
+                            # Appenda bloco extra apos a suplica para manter buffer
+                            h_next, v_next = blocos[rot_idx_h % len(blocos)]
+                            _append_playlist(playlist_h, h_next)
+                            buf_h += DURACAO_BLOCO_SEG
+                            if sk_v_ativo and playlist_v:
+                                _append_playlist(playlist_v, v_next)
+                                buf_v += DURACAO_BLOCO_SEG
+                            rot_idx_h = (rot_idx_h + 1) % len(blocos)
+                            log.info(f"Bloco pos-suplica appendado: {h_next.name}")
+
+                    # Rolling append de manutencao: buffer abaixo de ROLLING_ANTECIPACAO
                     buf_restante = buf_h - elapsed
                     if buf_restante < ROLLING_ANTECIPACAO:
-                        # Inserir súplica pronta antes do próximo bloco
-                        if _ev_suplica_pronta.is_set():
-                            with _lock_suplica:
-                                sh = _suplica_caminhos.get("h")
-                                sv = _suplica_caminhos.get("v")
-                                _suplica_caminhos["h"] = None
-                                _suplica_caminhos["v"] = None
-                            _ev_suplica_pronta.clear()
-                            if sh and sh.exists():
-                                _append_playlist(playlist_h, sh)
-                                buf_h += DURACAO_SUPLICA_SEG
-                                if sk_v_ativo and playlist_v and sv and sv.exists():
-                                    _append_playlist(playlist_v, sv)
-                                    buf_v += DURACAO_SUPLICA_SEG
-                                log.info(
-                                    f"Súplica inserida (buf_restante={buf_restante:.0f}s"
-                                    f" → +{DURACAO_SUPLICA_SEG}s)")
-                        # Appendar próximo bloco (sempre, para manter buffer)
                         h_next, v_next = blocos[rot_idx_h % len(blocos)]
                         _append_playlist(playlist_h, h_next)
                         buf_h += DURACAO_BLOCO_SEG
@@ -1424,7 +1433,7 @@ def loop_transmissor():
                             _append_playlist(playlist_v, v_next)
                             buf_v += DURACAO_BLOCO_SEG
                         rot_idx_h = (rot_idx_h + 1) % len(blocos)
-                        log.info(f"Bloco appendado: {h_next.name} (buffer: {buf_h - elapsed:.0f}s)")
+                        log.info(f"Bloco appendado (manutencao buffer): {h_next.name} ({buf_h - elapsed:.0f}s)")
 
                     # P0-B: watchdog do broadcast
                     if yt and bid_h and (time.time() - ultimo_check_bc) >= 120:
