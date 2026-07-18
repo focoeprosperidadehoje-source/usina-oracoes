@@ -148,7 +148,14 @@ for index, linha in enumerate(dados, start=2):
         tags_limpas = re.sub(r'[^a-zA-Z0-9áéíóúÁÉÍÓÚçÇ ,]', '', tags_str)
         tags_lista = [t.strip()[:30] for t in tags_limpas.split(',') if t.strip()][:15]
         
-        texto_convite = "\n\n🙏 Para la oración completa y profunda, visita nuestro canal. Publicamos oraciones poderosas 3 veces al día.\n\n🔴 MUY PRONTO — EN VIVO 24 HORAS: Sus pedidos de intercesión y los nombres de sus seres queridos serán mencionados en oración de forma continua e ininterrumpida. ¡Activen la 🔔 campanita para no perderse el lanzamiento!\n\nNuestras Playlists:\nOraciones de la Mañana: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA\nOraciones para Dormir: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD"
+        URL_LIVE   = "https://www.youtube.com/channel/UCyPGsztvMnUhDeoI_6H4bsA/live"
+        LINHA_LIVE = f"🔴 ORACIÓN EN VIVO 24H con La Morenita 🙏 Únete aquí: {URL_LIVE}"
+        texto_convite = "\n\n🙏 Para la oración completa y profunda, visita nuestro canal. Publicamos oraciones poderosas 3 veces al día.\n\n🔴 ORACIÓN EN VIVO 24H con La Morenita: Sus pedidos de intercesión y los nombres de sus seres queridos están siendo mencionados en oración de forma continua e ininterrumpida. ¡Únete ahora mismo!\n\nNuestras Playlists:\nOraciones de la Mañana: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA\nOraciones para Dormir: https://www.youtube.com/playlist?list=PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD"
+        # FL2: ponte Shorts->Live (idempotente)
+        if not descricao_ia.startswith("🔴 ORACIÓN EN VIVO"):
+            descricao_final = f"{LINHA_LIVE}\n\n{descricao_ia}"
+        else:
+            descricao_final = descricao_ia
         
         # CORREÇÃO DO FUSO HORÁRIO DO MÉXICO
         try: 
@@ -157,7 +164,7 @@ for index, linha in enumerate(dados, start=2):
             publish_at = tz_mexico.localize(dt_obj).isoformat() 
         except: publish_at = None
         
-        body = {"snippet": {"title": titulo[:100], "description": f"{descricao_ia}{texto_convite}", "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private" if publish_at else "public", "selfDeclaredMadeForKids": False, "selfDeclaredMadeWithAlteredContent": True}}
+        body = {"snippet": {"title": titulo[:100], "description": f"{descricao_final}{texto_convite}", "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private" if publish_at else "public", "selfDeclaredMadeForKids": False, "selfDeclaredMadeWithAlteredContent": True}}
         if publish_at: body["status"]["publishAt"] = publish_at
 
         for tentativa in range(3):
