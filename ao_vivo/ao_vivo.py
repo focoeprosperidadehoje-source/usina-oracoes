@@ -923,17 +923,24 @@ def _finalizar_broadcast(yt, bid: str):
         log.info(f"Broadcast {bid} encerrado — VOD em processamento.")
     except Exception as e:
         log.warning(f"finalizar {bid}: transition ({e}) — autoStop pode já ter encerrado")
-    try:
-        yt.playlistItems().insert(
-            part="snippet",
-            body={"snippet": {
-                "playlistId": PLAYLIST_LIVES,
-                "resourceId": {"kind": "youtube#video", "videoId": bid},
-            }},
-        ).execute()
-        log.info(f"VOD {bid} adicionado à playlist de lives.")
-    except Exception as e:
-        log.warning(f"finalizar {bid}: playlistItems.insert ({e})")
+    # Retry: YouTube demora 2-5min para processar VOD apos transition("complete")
+    for tentativa in range(1, 4):
+        try:
+            yt.playlistItems().insert(
+                part="snippet",
+                body={"snippet": {
+                    "playlistId": PLAYLIST_LIVES,
+                    "resourceId": {"kind": "youtube#video", "videoId": bid},
+                }},
+            ).execute()
+            log.info(f"VOD {bid} adicionado a playlist de lives (tentativa {tentativa}).")
+            break
+        except Exception as e:
+            if tentativa < 3:
+                log.info(f"Playlist insert tentativa {tentativa}/3 falhou ({e}) — aguardando 120s")
+                time.sleep(120)
+            else:
+                log.warning(f"finalizar {bid}: playlist insert falhou apos 3 tentativas ({e})")
 
 
 # ═══════════════════════════════════════════════════════════════════════
