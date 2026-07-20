@@ -1187,21 +1187,108 @@ def _montar_bloco_h(audio: Path) -> Path:
     return saida
 
 
+def _montar_bloco_v(audio: Path) -> Path:
+    """Monta bloco V: cortes de videos_base/ (mudo) + áudio — formato 1080x1920."""
+    ts     = audio.stem.replace("audio_", "")
+    saida  = DIR_BLOCOS / f"bloco_{ts}_v.mp4"
+    if saida.exists():
+        return saida
+
+    videos = sorted(DIR_VIDEOS_BASE.glob("*.mp4"))
+    if not videos:
+        raise RuntimeError(f"Sem vídeos em {DIR_VIDEOS_BASE} — coloque os cortes lá.")
+
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
+            capture_output=True, text=True, timeout=15
+        )
+        dur = max(int(float(r.stdout.strip())), 1200)
+    except Exception:
+        dur = DURACAO_BLOCO_SEG
+
+    vids_shuffled = list(videos)
+    random.shuffle(vids_shuffled)
+    concat_file = saida.with_suffix(".vconcat.txt")
+    linhas = ["ffconcat version 1.0"]
+    total  = 0
+    idx    = 0
+    while total < dur + 300:
+        linhas.append(f"file '{vids_shuffled[idx % len(vids_shuffled)]}'")
+        total += 600
+        idx   += 1
+    concat_file.write_text("\n".join(linhas))
+
+    musica    = _musica_periodo()
+    extra_inp = ["-i", musica] if musica else []
+    if musica:
+        afiltro = (
+            "[1:a]volume=1.0[pray];"
+            f"[2:a]volume=0.13,aloop=loop=-1:size=2e+09,atrim=duration={dur}[mus];"
+            "[pray][mus]amix=inputs=2:duration=first:dropout_transition=3[aout]"
+        )
+    else:
+        afiltro = "[1:a]volume=1.0[aout]"
+
+    # Blur fill: fundo = H desfocado 1080x1920; frente = H original reduzido
+    # centralizado. Nenhum corte — sujeito sempre visível.
+    vfiltro = (
+        "[0:v]split=2[bg][fg];"
+        "[bg]scale=1080:1920:force_original_aspect_ratio=increase,"
+        "crop=1080:1920,gblur=sigma=30,setsar=1[blurred];"
+        "[fg]scale=1080:-2[main];"
+        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=30[vout]"
+    )
+
+    cmd = [
+        "nice", "-n", "19",
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0", "-i", str(concat_file),
+        "-i", str(audio),
+        *extra_inp,
+        "-filter_complex", f"{vfiltro};{afiltro}",
+        "-map", "[vout]", "-map", "[aout]",
+        "-t", str(dur),
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+        "-r", "30", "-pix_fmt", "yuv420p",
+        "-threads", "2",
+        str(saida),
+    ]
+    log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=2700)
+    concat_file.unlink(missing_ok=True)
+    if result.returncode != 0:
+        saida.unlink(missing_ok=True)
+        raise RuntimeError(f"FFmpeg assembler V falhou: {result.stderr[-600:]}")
+    mb = saida.stat().st_size // (1024 * 1024)
+    log.info(f"Assembler: {saida.name} pronto ({mb} MB)")
+    return saida
+
+
 def loop_assembler():
-    """Monitora DIR_BLOCOS por novos audio_*.mp3, monta blocos H com videos_base/."""
+    """Monitora DIR_BLOCOS por novos audio_*.mp3, monta blocos H+V com videos_base/."""
     log.info("Assembler iniciado — aguardando audio_*.mp3 em blocos/")
     while not _ev_parar.is_set():
         try:
             for audio in sorted(DIR_BLOCOS.glob("audio_*.mp3")):
                 ts      = audio.stem.replace("audio_", "")
                 bloco_h = DIR_BLOCOS / f"bloco_{ts}_h.mp4"
-                if bloco_h.exists():
+                bloco_v = DIR_BLOCOS / f"bloco_{ts}_v.mp4"
+                h_ok = bloco_h.exists()
+                v_ok = bloco_v.exists()
+                if h_ok and v_ok:
                     audio.unlink(missing_ok=True)
                     continue
                 try:
-                    _montar_bloco_h(audio)
+                    if not h_ok:
+                        _montar_bloco_h(audio)
+                        log.info(f"Assembler: {bloco_h.name} adicionado à rotação.")
+                    if not v_ok:
+                        _montar_bloco_v(audio)
+                        log.info(f"Assembler: {bloco_v.name} adicionado à rotação.")
                     audio.unlink(missing_ok=True)
-                    log.info(f"Assembler: {bloco_h.name} adicionado à rotação.")
                 except Exception as e:
                     log.error(f"Assembler erro ({audio.name}): {e}")
         except Exception as e:
