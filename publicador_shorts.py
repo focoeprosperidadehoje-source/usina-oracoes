@@ -80,6 +80,12 @@ for index, linha in enumerate(dados, start=2):
     if str(linha.get('Status', '')).strip() == 'Pronto p/ Áudio' and str(linha.get('Horario', '')).strip() == HORARIO_ALVO:
         data_str, horario_str, titulo, descricao_ia, tags_str, persona, roteiro = str(linha.get('Data', '')), str(linha.get('Horario', '')), str(linha.get('Titulo', '')), str(linha.get('Descricao', '')), str(linha.get('Tags', '')), str(linha.get('Personagem', '')).upper(), str(linha.get('Roteiro', ''))
         
+        # FL6: portao contra titulos invalidos/placeholder
+        titulo_limpo = titulo.strip()
+        if not titulo_limpo or re.search(r't[\xed\u00ed]tulo\s+padr[\xe3\u00e3ao]o', titulo_limpo, re.IGNORECASE):
+            print(f"   AVISO FL6: Short linha {index} ignorado -- titulo invalido: {repr(titulo_limpo)}")
+            aba_shorts.update_cell(index, col_status, 'Titulo Invalido')
+            continue
         print(f"🎬 INICIANDO SHORT: Linha {index} - {persona} às {horario_str}")
         
         id_pasta_img = ID_PASTA_JESUS_VERT if persona == 'JESUS' else ID_PASTA_MARIA_VERT
