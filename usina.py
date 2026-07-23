@@ -220,6 +220,20 @@ for video in grade_para_processar:
     cta_comentarios = "Pide al oyente que escriba un motivo de gratitud en los comentarios." if horario == "18:00" else "Pide al oyente que escriba su intención o petición para el día en los comentarios."
     regra_persona = "OBLIGATORIO: Como te diriges a Jesucristo, ESTÁ ESTRICTAMENTE PROHIBIDO mencionar a María, la Virgen o Guadalupe." if persona == 'JESUS' else "OBLIGATORIO: Como te diriges a María, DEBES usar las invocaciones 'Virgen de Guadalupe', 'Madre de Guadalupe' y referirte a ella cariñosamente como 'La Morenita'."
     titulo_sufixo = "Oración de la Mañana" if horario == "06:00" else "Oración de la Noche"
+    instrucao_titulo = (
+        f"TITULO:[Título magnético. OBLIGATORIO empezar con 'La Morenita'. FORMATO: 'La Morenita [Gatillo de dolor del oyente] [promesa urgente] - {titulo_sufixo}'. Ej: 'La Morenita Sana Tu Familia Esta Noche - {titulo_sufixo}'. SIN FECHA. SIN ASTERISCOS NI CORCHETES]"
+        if persona == 'MARIA' else
+        f"TITULO:[Título magnético. OBLIGATORIO empezar con el dolor o situación del oyente, NUNCA con 'Jesús'. FORMATO: '[Dolor/situación crítica del oyente] — [promesa de alivio urgente] - {titulo_sufixo}'. Ej: 'Tu Familia Está Sufriendo — Haz Esta Oración AHORA - {titulo_sufixo}'. SIN FECHA. SIN ASTERISCOS NI CORCHETES]"
+    )
+    instrucao_miguel = (
+        "Cuando sea natural en la oración, menciona la intercesión del Arcángel San Miguel como guardián y protector espiritual."
+        if "Guerra" in pilar_do_dia else ""
+    )
+    tags_extras = (
+        f"virgen de guadalupe, la morenita, oración guadalupe{', arcángel miguel, san miguel arcángel' if 'Guerra' in pilar_do_dia else ''}, coronilla de la divina misericordia"
+        if persona == 'MARIA' else
+        f"jesús, cristo, oración de la {'mañana' if horario == '06:00' else 'noche'}{', arcángel miguel, san miguel arcángel' if 'Guerra' in pilar_do_dia else ''}"
+    )
 
     prompt_principal = f"""
     Actúa como un guía espiritual y hermano en la fe. Escribe una oración extensa de 1500 a 1800 palabras sobre "{tema_gerado}" dirigida a {persona_prompt}. 
@@ -228,7 +242,7 @@ for video in grade_para_processar:
     1. AUDIENCIA GLOBAL: Español Latino neutro. PROHIBIDO mencionar países.
     2. HORARIOS: PROHIBIDO mencionar la hora exacta. Usa SOLO la expresión "{periodo}".
     3. GANCHO INICIAL MATADOR (0-60s): NO te presentes. Empieza la primera frase con una AFIRMACIÓN EMPÁTICA sobre el dolor o la esperanza del oyente. LUEGO, conecta con: {instrucao_abertura}. LUEGO, haz una promesa de alivio si se queda hasta el final.
-    4. COFRE SEMÁNTICO (SEO Y RETENCIÓN): Teje de forma natural los conceptos de Sanación, Perdón y Protección. ADEMÁS, elige y usa sutilmente solo 2 o 3 de estas palabras mágicas a lo largo del texto: [Puertas Abiertas, Milagros, Providencia, Misericordia, Descanso Profundo]. NO las uses todas juntas.
+    4. COFRE SEMÁNTICO (SEO Y RETENCIÓN): Teje de forma natural los conceptos de Sanación, Perdón y Protección. ADEMÁS, elige y usa sutilmente solo 2 o 3 de estas palabras mágicas a lo largo del texto: [Puertas Abiertas, Milagros, Providencia, Misericordia, Descanso Profundo]. NO las uses todas juntas. {instrucao_miguel}
     5. PROFUNDIDAD: UN SOLO TEMA central. Párrafos elaborados.
     6. RESET DE ATENCIÓN: A la mitad de la oración, inserta un 'Reset de Atención' hablado (Ej: 'Presta mucha atención ahora, no dejes que las distracciones te alejen...').
     7. GANCHOS INVISIBLES DE RETENCIÓN: Cada 300 a 400 palabras, incorpora orgánicamente — sin que el fiel perciba la técnica — uno de estos recursos: (a) ANTICIPACIÓN: anuncia que algo importante será revelado pronto, sin revelarlo aún; (b) REVELACIÓN PARCIAL: entrega una parte de la respuesta espiritual y señala que hay más; (c) VALIDACIÓN EMOCIONAL: nombra exactamente lo que el fiel está sintiendo en ese momento, creando reconocimiento profundo; (d) GIRO DE BLOQUE: realiza una transición inesperada de tono — de súplica a gratitud, de dolor a esperanza — que renueve la atención. Los ganchos deben ser invisibles: el fiel no percibe la técnica, solo siente que no puede dejar de escuchar. Nunca rompas el clima devocional.
@@ -236,16 +250,16 @@ for video in grade_para_processar:
     9. PAUSAS: OBLIGATORIO usar abundantes puntos suspensivos (...) para forzar pausas en la voz.
     10. CENSURA: PROHIBIDO descripciones de violencia física.
     11. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!".
-    12. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes.
+    12. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes. Después añade una frase breve invitando a suscribirse al canal: hazla sonar como llamada espiritual (ej: 'Si esta oración tocó tu corazón, únete a nuestra familia de fe — suscríbete para recibir oraciones cada día'). Nunca suena como publicidad.
     13. ANTI-JSON: Escribe en TEXTO PLANO. PROHIBIDO JSON, llaves {{ }} o asteriscos (*).
     {regra_persona}
     {regra_meditacao}
     FORMATO EXACTO:
-    TITULO:[Título magnético. FORMATO: "[Promesa Urgente o Gatillo de Alivio] - {titulo_sufixo}". SIN FECHA. SIN ASTERISCOS NI CORCHETES]
+    {instrucao_titulo}
     THUMB:[Frase de impacto de MÁXIMO 4 PALABRAS. Promesa urgente. SIN ASTERISCOS NI CORCHETES]
     GUION:[Oración completa de 1500 a 1800 palabras]
-    DESC:[Descripción de 3 párrafos con fuerte SEO]
-    TAGS:[Etiquetas separadas por comas]
+    DESC:[Descripción de 3 párrafos con fuerte SEO. PRIMER párrafo: invita a las oraciones EN VIVO 24 horas del canal ('Únete a nuestras oraciones en vivo las 24 horas — el canal ora sin parar por ti. Activa la campanita para no perderte ninguna oración'). SEGUNDO párrafo: descripción emocional de esta oración. TERCER párrafo: keywords y hashtags.]
+    TAGS:[Etiquetas separadas por comas. Incluye siempre: {tags_extras}]
     """
     
     texto_ia = None

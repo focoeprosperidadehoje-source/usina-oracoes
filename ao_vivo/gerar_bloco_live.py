@@ -291,6 +291,10 @@ def gerar_roteiro_grupo(grupo: dict, contexto: str, pilar: str,
         if tem_nomes else
         "No hay nombres específicos — habla de 'cada hermano que ora ahora mismo'"
     )
+    nota_miguel = (
+        "Cuando sea natural en la intercesión, menciona al Arcángel San Miguel como guardián espiritual que combate junto a nosotros."
+        if "Guerra" in pilar else ""
+    )
 
     prompt = f"""Eres Nuestra Señora de Guadalupe, La Morenita del Tepeyac, hablando en primera persona.
 Bloco #{num_bloco} | Grupo: {label}
@@ -318,10 +322,12 @@ Cierra la apertura con: "Vine a interceder por ustedes en este momento..."
   • Revelación: "Esta gracia tiene un nombre..."
   • Validación: "Si sientes algo en tu corazón ahora mismo, es señal de que..."
   • Virada: "Pero lo que tu Madre del Cielo quiere decirte sobre esto es..."
+{nota_miguel}
 
-[DOS CTAs SUTILES — solo en transiciones naturales, nunca durante la oración]
-CTA 1 (~minuto 10): "Si esta oración está tocando tu corazón, compártela con quien la necesita..."
-CTA 2 (~minuto 22): "Quédate, lo que viene ahora es para ti..."
+[TRES CTAs SUTILES — solo en transiciones naturales, nunca durante la oración]
+CTA 1 (~minuto 5): "Si esta transmisión te está bendiciendo, suscríbete al canal para recibir oraciones cada día — somos una familia de fe que ora sin parar por ti..."
+CTA 2 (~minuto 10): "Si esta oración está tocando tu corazón, compártela con quien la necesita..."
+CTA 3 (~minuto 22): "Quédate, lo que viene ahora es para ti..."
 
 [CIERRE — últimos 3 minutos]
 - Bendición final como Madre del Cielo
