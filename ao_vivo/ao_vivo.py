@@ -351,7 +351,9 @@ def listar_blocos() -> list[tuple[Path, Path]]:
         except OSError:
             continue
         v = Path(str(h).replace("_h.mp4", "_v.mp4"))
-        resultado.append((h, v if v.exists() else h))
+        if v.exists():
+            resultado.append((h, v))
+        # blocos sem _v.mp4 sao ignorados — evita H na playlist V
     return resultado
 
 def _proximo_bloco() -> tuple[Path, Path]:
@@ -728,7 +730,8 @@ DESCRICAO_LIVE = (
     "🔔 Activa la campanita · 👍 Dale like · ➡️ Visita el canal"
 )
 
-_stream_id_cache = {"id": None}
+_stream_id_cache   = {"id": None}
+_stream_id_cache_v = {"id": None}
 
 
 def _titulo_live_do_dia() -> str:
@@ -761,6 +764,69 @@ def _stream_id_da_chave(yt) -> str:
         f"liveStream da STREAM_KEY_H não encontrado ({len(itens)} streams na conta) "
         "— defina STREAM_ID_H no .env"
     )
+
+
+def _stream_id_da_chave_v(yt) -> str:
+    """Localiza o liveStream ID da STREAM_KEY_V (cacheado).
+    Aceita override via STREAM_ID_V no .env."""
+    if _stream_id_cache_v["id"]:
+        return _stream_id_cache_v["id"]
+    sid_env = os.environ.get("STREAM_ID_V", "")
+    if sid_env:
+        _stream_id_cache_v["id"] = sid_env
+        return sid_env
+    resp  = yt.liveStreams().list(part="id,cdn", mine=True, maxResults=50).execute()
+    for item in resp.get("items", []):
+        nome = item.get("cdn", {}).get("ingestionInfo", {}).get("streamName", "")
+        if nome == STREAM_KEY_V:
+            _stream_id_cache_v["id"] = item["id"]
+            return item["id"]
+    raise RuntimeError(
+        "liveStream da STREAM_KEY_V nao encontrado — defina STREAM_ID_V no .env"
+    )
+
+
+def criar_broadcast_v(yt) -> str:
+    """Cria broadcast vertical NAO LISTADO com autoStart, vinculado a STREAM_KEY_V."""
+    titulo = _titulo_live_do_dia()
+    broadcast = yt.liveBroadcasts().insert(
+        part="snippet,status,contentDetails",
+        body={
+            "snippet": {
+                "title": titulo,
+                "description": DESCRICAO_LIVE,
+                "scheduledStartTime": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+            "status": {
+                "privacyStatus": "unlisted",
+                "selfDeclaredMadeForKids": False,
+            },
+            "contentDetails": {
+                "enableAutoStart": True,
+                "enableAutoStop": False,
+                "latencyPreference": "normal",
+                "monitorStream": {"enableMonitorStream": False},
+                "selfDeclaredMadeWithAlteredContent": True,
+            },
+        },
+    ).execute()
+    bid = broadcast["id"]
+    try:
+        sid_v = _stream_id_da_chave_v(yt)
+        yt.liveBroadcasts().bind(part="id,contentDetails", id=bid,
+                                 streamId=sid_v).execute()
+        log.info(f"Broadcast V {bid} vinculado a STREAM_KEY_V.")
+    except Exception as e:
+        log.error(f"bind broadcast V {bid}: {e}")
+    try:
+        snip = yt.videos().list(part="snippet", id=bid).execute()["items"][0]["snippet"]
+        snip["defaultLanguage"]      = "es"
+        snip["defaultAudioLanguage"] = "es"
+        yt.videos().update(part="snippet", body={"id": bid, "snippet": snip}).execute()
+    except Exception as e:
+        log.warning(f"idioma broadcast V {bid}: {e}")
+    log.info(f"Broadcast V criado (nao listado, autoStart): {bid} — {titulo}")
+    return bid
 
 
 def adotar_broadcast_ativo(yt) -> str | None:
@@ -1432,6 +1498,17 @@ def loop_transmissor():
                 except Exception as e:
                     log.error(f"broadcast do ciclo: {e} — ciclo segue só com a stream key")
 
+            bid_v = None
+            if sk_v_ativo and yt:
+                try:
+                    bid_v = criar_broadcast_v(yt)
+                    with _lock:
+                        _estado["live_id_v"] = bid_v
+                    threading.Thread(target=_publicar_apos_golive, args=(yt, bid_v),
+                                     name="PublicaLiveV", daemon=True).start()
+                except Exception as e:
+                    log.error(f"broadcast V do ciclo: {e}")
+
             # Rolling playlist: ROLLING_INICIAIS blocos iniciais;
             # thread principal appenda novos blocos (e súplicas) conforme o buffer diminui.
             rot_idx_h = _rotation_idx % len(blocos)
@@ -1567,6 +1644,14 @@ def loop_transmissor():
                     _finalizar_broadcast(yt, bid_fim)
                 with _lock:
                     _estado["live_id_h"] = None
+
+            if yt and bid_v:
+                try:
+                    _finalizar_broadcast(yt, bid_v)
+                except Exception as e:
+                    log.warning(f"finalizar broadcast V: {e}")
+                with _lock:
+                    _estado["live_id_v"] = None
 
             if _ev_parar.is_set():
                 break
