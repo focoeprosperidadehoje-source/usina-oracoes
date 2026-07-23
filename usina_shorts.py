@@ -47,12 +47,6 @@ GRADE_SHORTS = [
     {"horario": "14:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Causas imposibles, sanación física y milagros.", "ref": "18:00"}
 ]
 
-# Short de divulgação da live — gerado apenas às segundas-feiras
-GRADE_SHORTS_PROMO = {
-    "horario": "09:00", "personagem": "Maria", "idioma": "ES",
-    "foco": "Promover la oración EN VIVO 24 horas del canal.", "ref": None, "tipo": "promo_live"
-}
-
 aba_shorts = gc.open_by_key(ID_PLANILHA).worksheet("ES_SHORTS")
 aba_longos = gc.open_by_key(ID_PLANILHA).worksheet("ES")
 
@@ -85,8 +79,6 @@ data_check = limite_passado
 while data_check <= meta_estoque:
     horarios_presentes = dias_existentes.get(data_check, [])
     horarios_faltando = [v for v in GRADE_SHORTS if v["horario"] not in horarios_presentes]
-    if data_check.weekday() == 0 and GRADE_SHORTS_PROMO["horario"] not in horarios_presentes:
-        horarios_faltando = [GRADE_SHORTS_PROMO] + horarios_faltando
     if horarios_faltando:
         gaps.append((data_check, horarios_faltando))
     data_check += datetime.timedelta(days=1)
@@ -104,48 +96,23 @@ for data_alvo, grade_para_processar in gaps:
         horario, persona, idioma, foco_teologico = video["horario"], video["personagem"].upper(), video["idioma"], video["foco"]
         print(f"🎬 PRODUZINDO SHORT: {horario} | {persona}")
 
-        is_promo = video.get("tipo") == "promo_live"
-
-        horario_longo_ref = video.get("ref")
+        horario_longo_ref = video["ref"]
         titulo_referencia = ""
-        if horario_longo_ref:
-            for linha in dados_longos[1:]:
-                if len(linha) > 6 and linha[0].strip() == str(data_alvo) and linha[1].strip() == horario_longo_ref:
-                    titulo_referencia = linha[6].strip()
-                    break
+        for linha in dados_longos[1:]:
+            if len(linha) > 6 and linha[0].strip() == str(data_alvo) and linha[1].strip() == horario_longo_ref:
+                titulo_referencia = linha[6].strip()
+                break
 
         contexto_eco = f"El video largo correspondiente de hoy tiene el título: '{titulo_referencia}'. El Short DEBE ser un eco de este tema." if titulo_referencia else ""
         persona_prompt = "Jesucristo" if persona == 'JESUS' else "la Virgen de Guadalupe (La Morenita)"
         prefixo_titulo_short = "Oración Poderosa con La Morenita:" if persona == 'MARIA' else "Oración Poderosa con Jesús:"
 
-        if is_promo:
-            prompt_principal = f"""
-        Actúa como guía espiritual católico. Crea el guion de un SHORT de YouTube (máximo 40 segundos) cuyo ÚNICO objetivo es invitar a unirse a la transmisión EN VIVO de oraciones 24 horas del canal, donde La Morenita (Virgen de Guadalupe) intercede sin parar.
-
-        ESTRUCTURA OBLIGATORIA:
-        1. GANCHO (inicio con "..."): Frase de urgencia espiritual invitando a la live. Ej: "...en este momento, La Morenita está intercediendo por ti EN VIVO..."
-        2. CUERPO (10-15 segundos): ¿Por qué necesitas entrar ahora? Alguien está orando por exactamente lo que tú estás pasando.
-        3. CTA FINAL: "Entra al canal AHORA — busca el video EN VIVO y únete a la familia de fe."
-
-        REGLAS:
-        - Máximo 40 segundos de lectura (≈100 palabras)
-        - Usa puntos suspensivos (...) para pausas de respiración
-        - Tono: urgencia maternal, nunca comercial
-        - ANTI-JSON: solo texto plano, sin asteriscos ni corchetes
-
-        FORMATO EXACTO:
-        TITULO:[Oración EN VIVO con La Morenita: Tu Milagro Te Espera AHORA #Shorts]
-        GUION:[guion completo]
-        DESC:[PRIMERA LÍNEA: '¡Únete AHORA! La Morenita ora EN VIVO las 24 horas por ti — entra al canal ahora mismo.' SEGUNDA LÍNEA: Invitar a las playlists de oraciones del canal. TERCERA LÍNEA: hashtags #Shorts #OraciónEnVivo #LaMorenita #VirgenDeGuadalupe]
-        TAGS:[shorts, oración en vivo, la morenita, virgen de guadalupe, milagros, oración 24 horas, en vivo ahora, intercesión]
-        """
+        if persona == 'JESUS':
+            oracao_padrao = "Padre nuestro que estás en el cielo... santificado sea tu nombre... venga a nosotros tu reino... hágase tu voluntad en la tierra como en el cielo... Danos hoy nuestro pan de cada día... perdona nuestras ofensas... como también nosotros perdonamos a los que nos ofenden... no nos dejes caer en la tentación... y líbranos del mal... Amén."
         else:
-            if persona == 'JESUS':
-                oracao_padrao = "Padre nuestro que estás en el cielo... santificado sea tu nombre... venga a nosotros tu reino... hágase tu voluntad en la tierra como en el cielo... Danos hoy nuestro pan de cada día... perdona nuestras ofensas... como también nosotros perdonamos a los que nos ofenden... no nos dejes caer en la tentación... y líbranos del mal... Amén."
-            else:
-                oracao_padrao = "Dios te salve, María... llena eres de gracia... el Señor es contigo... bendita tú eres entre todas las mujeres... y bendito es el fruto de tu vientre Jesús... Santa María, Madre de Dios... ruega por nosotros, pecadores... ahora y en la hora de nuestra muerte... Amén. Santa María de Guadalupe... salva nuestras familias y conserva nuestra fe."
+            oracao_padrao = "Dios te salve, María... llena eres de gracia... el Señor es contigo... bendita tú eres entre todas las mujeres... y bendito es el fruto de tu vientre Jesús... Santa María, Madre de Dios... ruega por nosotros, pecadores... ahora y en la hora de nuestra muerte... Amén. Santa María de Guadalupe... salva nuestras familias y conserva nuestra fe."
 
-            prompt_principal = f"""
+        prompt_principal = f"""
         Actúa como un guía espiritual católico. Crea un guion para un video SHORT de YouTube (máximo 40 segundos de lectura).
         Tema del día: {pilar_do_dia}. Foco: {foco_teologico}. Dirigido a: {persona_prompt}.
         {contexto_eco}
