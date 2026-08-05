@@ -1226,6 +1226,7 @@ def _montar_bloco_h(audio: Path) -> Path:
     # P0-A (BUG 14): nice -n 19 + -threads 2 — o Assembler NUNCA disputa CPU
     # com o transmissor. Encode saturava as 4 vCPU -> FFmpeg H caía abaixo de
     # 1.0x -> YouTube encerrava o broadcast a cada workflow (3x/dia).
+    saida_tmp = saida.with_suffix(".tmp.mp4")
     cmd = [
         "nice", "-n", "19",
         "ffmpeg", "-y",
@@ -1239,15 +1240,16 @@ def _montar_bloco_h(audio: Path) -> Path:
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
         "-threads", "2",
-        str(saida),
+        str(saida_tmp),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
     # timeout ampliado: com -threads 2 + nice o encode pode levar bem mais tempo
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=2700)
     concat_file.unlink(missing_ok=True)
     if result.returncode != 0:
-        saida.unlink(missing_ok=True)
+        saida_tmp.unlink(missing_ok=True)
         raise RuntimeError(f"FFmpeg assembler falhou: {result.stderr[-600:]}")
+    saida_tmp.rename(saida)
     mb = saida.stat().st_size // (1024 * 1024)
     log.info(f"Assembler: {saida.name} pronto ({mb} MB)")
     return saida
@@ -1307,6 +1309,7 @@ def _montar_bloco_v(audio: Path) -> Path:
         "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=30[vout]"
     )
 
+    saida_tmp = saida.with_suffix(".tmp.mp4")
     cmd = [
         "nice", "-n", "19",
         "ffmpeg", "-y",
@@ -1320,14 +1323,15 @@ def _montar_bloco_v(audio: Path) -> Path:
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
         "-threads", "2",
-        str(saida),
+        str(saida_tmp),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=2700)
     concat_file.unlink(missing_ok=True)
     if result.returncode != 0:
-        saida.unlink(missing_ok=True)
+        saida_tmp.unlink(missing_ok=True)
         raise RuntimeError(f"FFmpeg assembler V falhou: {result.stderr[-600:]}")
+    saida_tmp.rename(saida)
     mb = saida.stat().st_size // (1024 * 1024)
     log.info(f"Assembler: {saida.name} pronto ({mb} MB)")
     return saida
@@ -1766,6 +1770,10 @@ def main():
     for d in [DIR_BLOCOS, DIR_SUPLICAS, DIR_INSUMOS_H, DIR_INSUMOS_V,
               DIR_MUSICAS_M, DIR_MUSICAS_N]:
         d.mkdir(parents=True, exist_ok=True)
+
+    for tmp in DIR_BLOCOS.glob("*.tmp.mp4"):
+        tmp.unlink(missing_ok=True)
+        log.info(f"Startup: removido bloco incompleto {tmp.name}")
 
     log.info("Verificando assets para súplicas...")
     garantir_assets_vps()
