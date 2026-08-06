@@ -1,0 +1,41 @@
+name: Deploy ao_vivo.py + Pillow → VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: SCP ao_vivo.py + pip install Pillow + restart
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH para VPS
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY_VPS_ES }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H 80.241.213.27 >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Enviar ao_vivo.py para VPS
+        run: |
+          scp -i ~/.ssh/vps_key -o StrictHostKeyChecking=no \
+            ao_vivo/ao_vivo.py \
+            root@80.241.213.27:/root/ao_vivo_es/ao_vivo.py
+
+      - name: Instalar Pillow + reiniciar serviço
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
+            "pip3 install Pillow --quiet && \
+             systemctl restart ao_vivo_es && \
+             sleep 5 && \
+             systemctl is-active ao_vivo_es && \
+             echo DEPLOY_OK"
+
+      - name: Remover chave SSH temporária
+        if: always()
+        run: rm -f ~/.ssh/vps_key
