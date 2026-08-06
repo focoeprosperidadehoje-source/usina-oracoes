@@ -2,6 +2,11 @@ name: Deploy ao_vivo.py + Pillow → VPS
 
 on:
   workflow_dispatch:
+    inputs:
+      modo:
+        description: 'deploy = atualizar ao_vivo.py | log = ler log'
+        required: false
+        default: 'deploy'
 
 jobs:
   deploy:
@@ -21,13 +26,21 @@ jobs:
           chmod 600 ~/.ssh/vps_key
           ssh-keyscan -H 80.241.213.27 >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Ler log (modo=log)
+        if: ${{ github.event.inputs.modo == 'log' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
+            "grep -i 'thumbnail\|PUBLICO\|publico\|broadcast\|PIL\|Pillow\|transmissor' /root/ao_vivo_es/ao_vivo.log | tail -60"
+
       - name: Enviar ao_vivo.py para VPS
+        if: ${{ github.event.inputs.modo != 'log' }}
         run: |
           scp -i ~/.ssh/vps_key -o StrictHostKeyChecking=no \
             ao_vivo/ao_vivo.py \
             root@80.241.213.27:/root/ao_vivo_es/ao_vivo.py
 
       - name: Instalar Pillow + reiniciar serviço
+        if: ${{ github.event.inputs.modo != 'log' }}
         run: |
           ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
             "apt-get install -y python3-pil --no-install-recommends -qq 2>&1 | tail -3 && \
