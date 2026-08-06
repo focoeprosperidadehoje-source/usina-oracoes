@@ -30,7 +30,7 @@ jobs:
       - name: Instalar Pillow + reiniciar serviço
         run: |
           ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
-            "pip3 install Pillow --quiet && \
+            "apt-get install -y python3-pil --no-install-recommends -qq 2>&1 | tail -3 && \
              systemctl restart ao_vivo_es && \
              sleep 5 && \
              systemctl is-active ao_vivo_es && \
