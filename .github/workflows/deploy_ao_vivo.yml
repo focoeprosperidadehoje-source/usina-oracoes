@@ -30,7 +30,7 @@ jobs:
         if: ${{ github.event.inputs.modo == 'log' }}
         run: |
           ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
-            "grep -i 'thumbnail\|PUBLICO\|publico\|broadcast\|PIL\|Pillow\|transmissor' /root/ao_vivo_es/ao_vivo.log | tail -60"
+            "grep -i 'thumbnail\|PUBLICO\|publico\|broadcast\|PIL\|Pillow\|Ciclo\|ciclo\|criando\|adotar\|MODO' /root/ao_vivo_es/ao_vivo.log | head -80"
 
       - name: Enviar ao_vivo.py para VPS
         if: ${{ github.event.inputs.modo != 'log' }}
