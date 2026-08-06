@@ -21,6 +21,7 @@ import threading
 import subprocess
 import asyncio
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from io import BytesIO
@@ -32,10 +33,16 @@ from google.oauth2.service_account import Credentials as SACredentials
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials as OAuthCredentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import edge_tts
 
 load_dotenv()
+
+try:
+    from PIL import Image, ImageDraw, ImageFont
+    _PIL_OK = True
+except ImportError:
+    _PIL_OK = False
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -138,6 +145,12 @@ PILARES = {
 RTMP_BASE = "rtmp://a.rtmp.youtube.com/live2"
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT_ALT  = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+
+_THUMB_LINHAS = {
+    "manha": ["FUERZA Y", "RESTAURACIÓN", "CON LA MORENITA"],
+    "tarde":  ["PROTECCIÓN", "DIVINA", "CON LA MORENITA"],
+    "noite":  ["DESCANSO", "Y SANACIÓN", "CON LA MORENITA"],
+}
 
 # Estado global compartilhado entre threads
 _estado = {
@@ -940,7 +953,113 @@ def criar_broadcast_permanente(yt) -> str:
     return bid
 
 
-def _publicar_apos_golive(yt, bid: str, espera_seg: int = 60, timeout_seg: int = 1800):
+# ═══════════════════════════════════════════════════════════════════════
+# THUMBNAIL
+# ═══════════════════════════════════════════════════════════════════════
+
+def _fonte(size: int):
+    if not _PIL_OK:
+        return None
+    for path in (FONT_PATH, FONT_ALT):
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def _gerar_thumbnail_bytes(hora_local: datetime, imgs_dir: Path, w: int, h: int) -> bytes:
+    if not _PIL_OK:
+        return b""
+    try:
+        hora = hora_local.hour
+        if 5 <= hora < 12:
+            periodo = "manha"
+        elif 12 <= hora < 19:
+            periodo = "tarde"
+        else:
+            periodo = "noite"
+        linhas = _THUMB_LINHAS[periodo]
+
+        fotos = list(imgs_dir.glob("*.jpg")) + list(imgs_dir.glob("*.jpeg")) + list(imgs_dir.glob("*.png"))
+        if not fotos:
+            raise FileNotFoundError(f"Nenhuma imagem em {imgs_dir}")
+        bg = Image.open(random.choice(fotos)).convert("RGB")
+
+        bg_ratio = bg.width / bg.height
+        tgt_ratio = w / h
+        if bg_ratio > tgt_ratio:
+            new_h = h
+            new_w = int(bg.width * h / bg.height)
+        else:
+            new_w = w
+            new_h = int(bg.height * w / bg.width)
+        bg = bg.resize((new_w, new_h), Image.LANCZOS)
+        left = (new_w - w) // 2
+        top  = (new_h - h) // 2
+        bg = bg.crop((left, top, left + w, top + h))
+
+        draw = ImageDraw.Draw(bg, "RGBA")
+        draw.rectangle([(0, 0), (w, h)], fill=(0, 0, 0, 155))
+        draw.rectangle([(0, 0), (w, 8)], fill=(220, 30, 30, 255))
+
+        f_vivo = _fonte(30)
+        draw.text((16, 16), "● EN VIVO AHORA", font=f_vivo, fill=(220, 30, 30, 255))
+
+        f_titulo = _fonte(70 if w > h else 58)
+        total_h = sum(draw.textbbox((0, 0), l, font=f_titulo)[3] for l in linhas) + 10 * (len(linhas) - 1)
+        y = (h - total_h) // 2
+        for linha in linhas:
+            bbox = draw.textbbox((0, 0), linha, font=f_titulo)
+            lw = bbox[2] - bbox[0]
+            draw.text(((w - lw) // 2, y), linha, font=f_titulo, fill=(255, 255, 255, 255))
+            y += bbox[3] + 10
+
+        draw.rectangle([(w // 8, h - 70), (w - w // 8, h - 67)], fill=(212, 175, 55, 200))
+
+        f_brand = _fonte(38)
+        brand = "La Morenita · Oración 24 Horas"
+        bbox = draw.textbbox((0, 0), brand, font=f_brand)
+        bw = bbox[2] - bbox[0]
+        draw.text(((w - bw) // 2, h - 60), brand, font=f_brand, fill=(212, 175, 55, 255))
+
+        buf = BytesIO()
+        bg.save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
+    except Exception as e:
+        log.warning(f"thumbnail: geração falhou: {e}")
+        return b""
+
+
+def _aplicar_thumbnail(yt, bid: str, modo: str = "H"):
+    if not _PIL_OK:
+        log.warning("thumbnail: Pillow não instalado — pulando")
+        return
+    w, h = (1280, 720) if modo == "H" else (720, 1280)
+    imgs_dir = DIR_INSUMOS_H if modo == "H" else DIR_INSUMOS_V
+    hora_local = datetime.now(FUSO)
+    img_bytes = _gerar_thumbnail_bytes(hora_local, imgs_dir, w, h)
+    if not img_bytes:
+        return
+    tmp = None
+    try:
+        fd, tmp = tempfile.mkstemp(suffix=".jpg")
+        os.close(fd)
+        with open(tmp, "wb") as f:
+            f.write(img_bytes)
+        yt.thumbnails().set(
+            videoId=bid,
+            media_body=MediaFileUpload(tmp, mimetype="image/jpeg"),
+        ).execute()
+        log.info(f"Thumbnail aplicada ao broadcast {bid} (modo={modo})")
+    except Exception as e:
+        log.warning(f"thumbnail: falha ao aplicar em {bid}: {e}")
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _publicar_apos_golive(yt, bid: str, espera_seg: int = 60, timeout_seg: int = 1800, modo: str = "H"):
     """Espera o broadcast entrar AO VIVO (autoStart) e o torna PÚBLICO após
     espera_seg. Contorno: a API de lives não tem notifySubscribers — o go-live
     acontece NÃO LISTADO (não dispara sino) e a troca posterior de visibilidade
@@ -976,6 +1095,7 @@ def _publicar_apos_golive(yt, bid: str, espera_seg: int = 60, timeout_seg: int =
                                         "selfDeclaredMadeForKids": False}},
         ).execute()
         log.info(f"Broadcast {bid} agora PÚBLICO (go-live foi não listado — validar sino)")
+        _aplicar_thumbnail(yt, bid, modo)
     except Exception as e:
         log.error(f"publicar: falha ao tornar {bid} público: {e}")
 
@@ -1497,7 +1617,7 @@ def loop_transmissor():
                         bid_h = criar_broadcast_permanente(yt)
                     with _lock:
                         _estado["live_id_h"] = bid_h
-                    threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h),
+                    threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
                                      name="PublicaLive", daemon=True).start()
                 except Exception as e:
                     log.error(f"broadcast do ciclo: {e} — ciclo segue só com a stream key")
@@ -1508,7 +1628,7 @@ def loop_transmissor():
                     bid_v = criar_broadcast_v(yt)
                     with _lock:
                         _estado["live_id_v"] = bid_v
-                    threading.Thread(target=_publicar_apos_golive, args=(yt, bid_v),
+                    threading.Thread(target=_publicar_apos_golive, args=(yt, bid_v, 60, 1800, "V"),
                                      name="PublicaLiveV", daemon=True).start()
                 except Exception as e:
                     log.error(f"broadcast V do ciclo: {e}")
@@ -1622,7 +1742,7 @@ def loop_transmissor():
                                 bid_h = criar_broadcast_permanente(yt)
                                 with _lock:
                                     _estado["live_id_h"] = bid_h
-                                threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h),
+                                threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
                                                  name="PublicaLive", daemon=True).start()
                         except Exception as e:
                             log.warning(f"watchdog broadcast: {e}")
