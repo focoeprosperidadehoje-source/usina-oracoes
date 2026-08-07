@@ -1421,12 +1421,11 @@ def _montar_bloco_v(audio: Path) -> Path:
 
     # Blur fill: fundo = H desfocado 1080x1920; frente = H original reduzido
     # centralizado. Nenhum corte — sujeito sempre visível.
+    # Blur fill removido: gblur=sigma=30 em 1080x1920 excedia o timeout de 2700s.
+    # Crop central (escala para preencher altura e corta largura) — igual ao filtro H.
     vfiltro = (
-        "[0:v]split=2[bg][fg];"
-        "[bg]scale=1080:1920:force_original_aspect_ratio=increase,"
-        "crop=1080:1920,gblur=sigma=30,setsar=1[blurred];"
-        "[fg]scale=1080:-2[main];"
-        "[blurred][main]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=30[vout]"
+        "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+        "crop=1080:1920,setsar=1,fps=30[vout]"
     )
 
     saida_tmp = saida.with_suffix(".tmp.mp4")
@@ -1735,7 +1734,7 @@ def loop_transmissor():
                         ultimo_check_bc = time.time()
                         try:
                             itens = yt.liveBroadcasts().list(part="status", id=bid_h).execute().get("items", [])
-                            st = itens[0]["status"]["lifeCycleStatus"] if itens else "revoked"
+                            st = itens[0].get("status", {}).get("lifeCycleStatus", "revoked") if itens else "revoked"
                             if st in ("complete", "revoked"):
                                 log.warning(f"Broadcast {bid_h} encerrado no meio do ciclo — criando novo")
                                 _finalizar_broadcast(yt, bid_h)
