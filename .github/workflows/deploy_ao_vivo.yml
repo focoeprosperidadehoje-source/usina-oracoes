@@ -29,8 +29,16 @@ jobs:
       - name: Ler log (modo=log)
         if: ${{ github.event.inputs.modo == 'log' }}
         run: |
-          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
-            "grep -i 'thumbnail\|PUBLICO\|publico\|broadcast\|PIL\|Pillow\|Ciclo\|ciclo\|criando\|adotar\|MODO' /root/ao_vivo_es/ao_vivo.log | head -80"
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            echo '=== 02:xx UTC (restart) ===';
+            grep '2026-08-06 02' /root/ao_vivo_es/ao_vivo.log | tail -30;
+            echo '=== 03:xx UTC ===';
+            grep '2026-08-06 03' /root/ao_vivo_es/ao_vivo.log | head -20;
+            echo '=== thumbnail em todo o log ===';
+            grep -i 'thumbnail' /root/ao_vivo_es/ao_vivo.log | tail -20;
+            echo '=== PUBLICO em todo o log ===';
+            grep 'PÚBLICO\|publico\|PUBLIC' /root/ao_vivo_es/ao_vivo.log | tail -10;
+          "
 
       - name: Enviar ao_vivo.py para VPS
         if: ${{ github.event.inputs.modo != 'log' }}
