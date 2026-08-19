@@ -1140,17 +1140,12 @@ def _detectar_fonte() -> str:
     return ""
 
 def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> list[str]:
-    """Comando FFmpeg com stream_loop -1: repete o bloco indefinidamente.
-    Elimina freeze de transição — o código reinicia o processo para trocar de bloco."""
+    """Comando FFmpeg — stream copy (blocos já em h264/aac, re-encoding desperdiça CPU)."""
     return [
         "ffmpeg", "-re",
         "-i", str(arquivo),
-        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-        "-pix_fmt", "yuv420p",
-        "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
-        "-g", "60", "-keyint_min", "60",
-        "-threads", "2",
-        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+        "-c:v", "copy",
+        "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
 
@@ -1179,12 +1174,8 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
         "ffmpeg", "-re",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
-        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-        "-pix_fmt", "yuv420p",
-        "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
-        "-g", "60", "-keyint_min", "60",
-        "-threads", "2",
-        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+        "-c:v", "copy",
+        "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
     log_ffmpeg = BASE_DIR / f"ffmpeg_{nome.lower()}.log"
