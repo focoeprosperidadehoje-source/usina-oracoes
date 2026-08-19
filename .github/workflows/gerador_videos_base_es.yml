@@ -1,6 +1,10 @@
 name: 🖼️ Gerador de Vídeos Base (ES / PT)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gerador_videos_base_es.yml'  # roda na 1ª vez que o arquivo chega
   schedule:
     - cron: '0 3 * * 0'   # Domingos às 3h UTC (meia-noite BRT)
   workflow_dispatch:
