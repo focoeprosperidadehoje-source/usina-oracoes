@@ -103,12 +103,12 @@ DRIVE_MUSICAS_M_ID  = "1gxZA1TlQPzuf737XOo_n8blfOThnddgm"
 DRIVE_MUSICAS_N_ID  = "1VPmJ5JHXZ6ky0yRwVgqLmRZrl3HhtK3u"
 
 # Timing
-DURACAO_BLOCO_SEG    = 27 * 60       # 27min — duração de cada bloco base
+DURACAO_BLOCO_SEG    = 20 * 60       # 20min — duração real dos blocos (áudio mínimo 1200s)
 DURACAO_SUPLICA_SEG  = 160           # ~2.7min — estimativa de súplica
 SUPLICA_GERAR_OFFSET = 22 * 60       # iniciar geração da súplica em T+22min no bloco
 TRANSICAO_ANTECIP    = 90            # append próximo conteúdo 90s antes do fim do bloco
 ROLLING_INICIAIS    = 3              # blocos na playlist inicial (rolling)
-ROLLING_ANTECIPACAO = 600            # appendar quando buffer < 10min
+ROLLING_ANTECIPACAO = 1500           # appendar quando buffer < 25min (margem segura)
 SUPLICA_INTERVAL    = 30 * 60        # gerar súplica a cada 30min
 DURACAO_CICLO_SEG    = 6 * 3600      # 6h por broadcast
 BLOCOS_MINIMOS       = 1             # mínimo de blocos para iniciar transmissão
