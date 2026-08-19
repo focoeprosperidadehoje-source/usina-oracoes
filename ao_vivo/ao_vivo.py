@@ -117,7 +117,7 @@ BLOCOS_MINIMOS       = 1             # mínimo de blocos para iniciar transmiss�
 VOZ           = "es-MX-DaliaNeural"
 VOZ_RATE      = "-20%"
 VOZ_PITCH     = "-10Hz"
-MODELOS_LIVE  = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
+MODELOS_LIVE  = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
 CHAVES_CONTEUDO = [c for c in [
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
@@ -177,6 +177,7 @@ _rotation_idx = 0
 def rodar_gemini(prompt: str, usa_chat: bool = False) -> str:
     chaves = CHAVES_CHAT if usa_chat else CHAVES_CONTEUDO
     for modelo in MODELOS_LIVE:
+        modelo_morto = False
         for chave in chaves:
             try:
                 client = genai.Client(api_key=chave)
@@ -185,8 +186,14 @@ def rodar_gemini(prompt: str, usa_chat: bool = False) -> str:
             except Exception as e:
                 msg = str(e)
                 log.warning(f"Gemini {modelo} [{chave[-6:]}]: {msg[:100]}")
+                if "404" in msg or "no longer" in msg.lower() or "not found" in msg.lower():
+                    log.warning(f"Modelo {modelo} descontinuado — pulando para o próximo.")
+                    modelo_morto = True
+                    break
                 if "503" in msg or "unavailable" in msg.lower():
                     break
+        if modelo_morto:
+            continue
     log.error("Todos os modelos/chaves Gemini falharam.")
     return ""
 
