@@ -75,8 +75,10 @@ jobs:
         run: |
           ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
             systemctl status ao_vivo_es --no-pager -l | tail -20
-            echo '--- LOG RECENTE ---'
-            tail -50 /root/ao_vivo_es/ao_vivo.log
+            echo '--- AO_VIVO LOG ---'
+            tail -30 /root/ao_vivo_es/ao_vivo.log
+            echo '--- FFMPEG_H LOG ---'
+            tail -40 /root/ao_vivo_es/ffmpeg_h.log 2>/dev/null || echo 'ffmpeg_h.log nao encontrado'
           "
 
       - name: Remover chave SSH temporária
