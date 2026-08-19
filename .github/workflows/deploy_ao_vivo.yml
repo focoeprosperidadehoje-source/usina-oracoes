@@ -80,8 +80,10 @@ jobs:
             systemctl status ao_vivo_es --no-pager -l | tail -20
             echo '--- AO_VIVO LOG ---'
             tail -30 /root/ao_vivo_es/ao_vivo.log
-            echo '--- FFMPEG_H LOG ---'
-            tail -40 /root/ao_vivo_es/ffmpeg_h.log 2>/dev/null || echo 'ffmpeg_h.log nao encontrado'
+            echo '--- FFMPEG_H SPEED (ultimos 5s) ---'
+            tail -c 2000 /root/ao_vivo_es/ffmpeg_h.log 2>/dev/null | tr '\r' '\n' | grep -E 'speed=|fps=' | tail -5 || echo 'sem dados de speed'
+            echo '--- CPU LOAD ---'
+            top -bn1 | head -5
           "
 
       - name: Remover chave SSH temporária
