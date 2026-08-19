@@ -1140,11 +1140,14 @@ def _detectar_fonte() -> str:
     return ""
 
 def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> list[str]:
-    """Comando FFmpeg — stream copy (blocos já em h264/aac, re-encoding desperdiça CPU)."""
+    """Comando FFmpeg — re-encoda vídeo para garantir keyframes a cada 2s (exigência YouTube)."""
     return [
         "ffmpeg", "-re",
         "-i", str(arquivo),
-        "-c:v", "copy",
+        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+        "-pix_fmt", "yuv420p",
+        "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
+        "-g", "60", "-keyint_min", "30",
         "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
@@ -1174,7 +1177,10 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
         "ffmpeg", "-re",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
-        "-c:v", "copy",
+        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+        "-pix_fmt", "yuv420p",
+        "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
+        "-g", "60", "-keyint_min", "30",
         "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
@@ -1333,6 +1339,7 @@ def _montar_bloco_h(audio: Path) -> Path:
         "-t", str(dur),
         "-c:v", "libx264", "-preset", "ultrafast",
         "-b:v", "3500k", "-maxrate", "3500k", "-bufsize", "7000k",
+        "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
         "-threads", "2",
@@ -1416,6 +1423,7 @@ def _montar_bloco_v(audio: Path) -> Path:
         "-t", str(dur),
         "-c:v", "libx264", "-preset", "ultrafast",
         "-b:v", "3500k", "-maxrate", "3500k", "-bufsize", "7000k",
+        "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
         "-threads", "2",
