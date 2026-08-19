@@ -1142,22 +1142,14 @@ def _detectar_fonte() -> str:
 def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> list[str]:
     """Comando FFmpeg com stream_loop -1: repete o bloco indefinidamente.
     Elimina freeze de transição — o código reinicia o processo para trocar de bloco."""
-    font  = _detectar_fonte()
-    fsize = "52" if res.startswith("1920") else "38"
-    clock = (
-        f"drawtext=fontfile={font}:text='%{{localtime\\:%T}}':"
-        f"fontcolor=white:fontsize={fsize}:x=w-tw-30:y=30:"
-        f"shadowcolor=black:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=6"
-    ) if font else "drawtext=text='%{localtime\\:%T}':fontcolor=white:fontsize=48:x=w-tw-30:y=30"
-
     return [
         "ffmpeg", "-re",
         "-i", str(arquivo),
-        "-vf", clock,
-        "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
         "-pix_fmt", "yuv420p",
         "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
         "-g", "60", "-keyint_min", "60",
+        "-threads", "2",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-f", "flv", f"{ing}/{sk}",
     ]
@@ -1178,14 +1170,6 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
                             res: str, bitrate: str, nome: str) -> subprocess.Popen:
     """Lança FFmpeg com playlist ffconcat — transições sem gap entre blocos.
     cwd=BASE_DIR para que os paths relativos da playlist sejam resolvidos corretamente."""
-    font  = _detectar_fonte()
-    fsize = "52" if res.startswith("1920") else "38"
-    clock = (
-        f"drawtext=fontfile={font}:text='%{{localtime\\:%T}}':"
-        f"fontcolor=white:fontsize={fsize}:x=w-tw-30:y=30:"
-        f"shadowcolor=black:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=6"
-    ) if font else "drawtext=text='%{localtime\\:%T}':fontcolor=white:fontsize=48:x=w-tw-30:y=30"
-
     try:
         rel_playlist = str(playlist.relative_to(BASE_DIR))
     except ValueError:
@@ -1195,11 +1179,11 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
         "ffmpeg", "-re",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
-        "-vf", clock,
-        "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
+        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
         "-pix_fmt", "yuv420p",
         "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
         "-g", "60", "-keyint_min", "60",
+        "-threads", "2",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-f", "flv", f"{ing}/{sk}",
     ]
