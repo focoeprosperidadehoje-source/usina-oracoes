@@ -1,6 +1,10 @@
 name: Deploy ao_vivo.py + Pillow → VPS
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'ao_vivo/ao_vivo.py'   # auto-deploy sempre que ao_vivo.py mudar
   workflow_dispatch:
     inputs:
       modo:
@@ -41,14 +45,14 @@ jobs:
           "
 
       - name: Enviar ao_vivo.py para VPS
-        if: ${{ github.event.inputs.modo == 'deploy' }}
+        if: ${{ github.event.inputs.modo == 'deploy' || github.event_name == 'push' }}
         run: |
           scp -i ~/.ssh/vps_key -o StrictHostKeyChecking=no \
             ao_vivo/ao_vivo.py \
             root@80.241.213.27:/root/ao_vivo_es/ao_vivo.py
 
       - name: Instalar Pillow + forçar RTMP + reiniciar serviço
-        if: ${{ github.event.inputs.modo == 'deploy' }}
+        if: ${{ github.event.inputs.modo == 'deploy' || github.event_name == 'push' }}
         run: |
           ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
             "apt-get install -y python3-pil --no-install-recommends -qq 2>&1 | tail -3 && \
