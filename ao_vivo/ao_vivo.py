@@ -1467,17 +1467,19 @@ def loop_assembler():
                 bloco_v = DIR_BLOCOS / f"bloco_{ts}_v.mp4"
                 h_ok = bloco_h.exists()
                 v_ok = bloco_v.exists()
-                if h_ok and v_ok:
+                v_needed = bool(STREAM_KEY_V)
+                if h_ok and (v_ok or not v_needed):
                     audio.unlink(missing_ok=True)
                     continue
                 try:
                     if not h_ok:
                         _montar_bloco_h(audio)
                         log.info(f"Assembler: {bloco_h.name} adicionado à rotação.")
-                    if not v_ok:
+                    if not v_ok and v_needed:
                         _montar_bloco_v(audio)
                         log.info(f"Assembler: {bloco_v.name} adicionado à rotação.")
-                    audio.unlink(missing_ok=True)
+                    if bloco_h.exists() and (bloco_v.exists() or not v_needed):
+                        audio.unlink(missing_ok=True)
                 except Exception as e:
                     log.error(f"Assembler erro ({audio.name}): {e}")
         except Exception as e:
