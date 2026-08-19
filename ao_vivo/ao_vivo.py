@@ -574,6 +574,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
                "-f", "lavfi", "-i", f"color=c=0x1a0a2e:s={res}:r=30",
                "-i", str(audio), "-t", str(dur),
                "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+               "-g", "60", "-keyint_min", "30",
                "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", str(saida)]
         _run_ffmpeg(cmd, f"suplica cor {saida.name}")
         return
@@ -615,6 +616,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
         "-map", "[vout]", "-map", "[aout]",
         "-t", str(dur),
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "26",
+        "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-r", "30", "-pix_fmt", "yuv420p",
         str(saida),
     ]
