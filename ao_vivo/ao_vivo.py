@@ -1140,14 +1140,11 @@ def _detectar_fonte() -> str:
     return ""
 
 def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> list[str]:
-    """Comando FFmpeg — re-encoda vídeo para garantir keyframes a cada 2s (exigência YouTube)."""
+    """Comando FFmpeg — stream copy (blocos já encodados com keyframes corretos pelo assembler)."""
     return [
         "ffmpeg", "-re",
         "-i", str(arquivo),
-        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-        "-pix_fmt", "yuv420p",
-        "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
-        "-g", "60", "-keyint_min", "30",
+        "-c:v", "copy",
         "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
@@ -1177,10 +1174,7 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
         "ffmpeg", "-re",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
-        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-        "-pix_fmt", "yuv420p",
-        "-b:v", bitrate, "-maxrate", bitrate, "-bufsize", "6000k",
-        "-g", "60", "-keyint_min", "30",
+        "-c:v", "copy",
         "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
@@ -1324,9 +1318,8 @@ def _montar_bloco_h(audio: Path) -> Path:
         "crop=1920:1080,setsar=1,fps=30[vout]"
     )
 
-    # P0-A (BUG 14): nice -n 19 + -threads 1 — o Assembler NUNCA disputa CPU
-    # com o transmissor. -threads 1 (antes 2) libera 3 CPUs pro transmissor;
-    # re-encoding 1080p30 ultrafast precisa de 2+ CPUs livres para speed > 1.0x.
+    # Transmissor agora usa stream copy (zero CPU). Assembler pode usar 2 threads
+    # sem disputar com o transmissor — monta blocos ~2x mais rápido.
     saida_tmp = saida.with_suffix(".tmp.mp4")
     cmd = [
         "nice", "-n", "19",
@@ -1342,7 +1335,7 @@ def _montar_bloco_h(audio: Path) -> Path:
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
-        "-threads", "1",
+        "-threads", "2",
         str(saida_tmp),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
@@ -1426,7 +1419,7 @@ def _montar_bloco_v(audio: Path) -> Path:
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
-        "-threads", "1",
+        "-threads", "2",
         str(saida_tmp),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
