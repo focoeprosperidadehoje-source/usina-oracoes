@@ -1149,11 +1149,13 @@ def _detectar_fonte() -> str:
     return ""
 
 def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> list[str]:
-    """Comando FFmpeg — stream copy (blocos já encodados com keyframes corretos pelo assembler)."""
+    """Comando FFmpeg — re-encoda com keyframe estrito a cada 2s (YouTube exige ≤4s)."""
     return [
         "ffmpeg", "-re",
         "-i", str(arquivo),
-        "-c:v", "copy",
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-b:v", "3000k", "-maxrate", "3000k", "-bufsize", "6000k",
+        "-g", "60", "-keyint_min", "30",
         "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
@@ -1183,7 +1185,9 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
         "ffmpeg", "-re",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
-        "-c:v", "copy",
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-b:v", "3000k", "-maxrate", "3000k", "-bufsize", "6000k",
+        "-g", "60", "-keyint_min", "30",
         "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
