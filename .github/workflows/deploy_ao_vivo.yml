@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'deploy = atualizar ao_vivo.py | log = ler log'
+        description: 'deploy = atualizar ao_vivo.py | log = ler log | disable_v = comentar STREAM_KEY_V no .env | status = status + log recente'
         required: false
         default: 'deploy'
 
@@ -56,6 +56,28 @@ jobs:
              sleep 5 && \
              systemctl is-active ao_vivo_es && \
              echo DEPLOY_OK"
+
+      - name: Desabilitar live vertical (modo=disable_v)
+        if: ${{ github.event.inputs.modo == 'disable_v' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            sed -i 's/^STREAM_KEY_V=/#STREAM_KEY_V=/' /root/ao_vivo_es/.env
+            echo '--- .env STREAM_KEY_V ---'
+            grep 'STREAM_KEY_V' /root/ao_vivo_es/.env
+            systemctl restart ao_vivo_es
+            sleep 5
+            systemctl is-active ao_vivo_es
+            echo DISABLE_V_OK
+          "
+
+      - name: Status + log recente (modo=status)
+        if: ${{ github.event.inputs.modo == 'status' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            systemctl status ao_vivo_es --no-pager -l | tail -20
+            echo '--- LOG RECENTE ---'
+            tail -50 /root/ao_vivo_es/ao_vivo.log
+          "
 
       - name: Remover chave SSH temporária
         if: always()
