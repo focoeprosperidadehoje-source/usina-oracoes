@@ -47,11 +47,14 @@ jobs:
             ao_vivo/ao_vivo.py \
             root@80.241.213.27:/root/ao_vivo_es/ao_vivo.py
 
-      - name: Instalar Pillow + reiniciar serviço
+      - name: Instalar Pillow + forçar RTMP + reiniciar serviço
         if: ${{ github.event.inputs.modo == 'deploy' }}
         run: |
           ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
             "apt-get install -y python3-pil --no-install-recommends -qq 2>&1 | tail -3 && \
+             sed -i 's|^INGEST_URL=.*|INGEST_URL=rtmp://a.rtmp.youtube.com/live2|' /root/ao_vivo_es/.env; \
+             grep -q INGEST_URL /root/ao_vivo_es/.env || echo 'INGEST_URL=rtmp://a.rtmp.youtube.com/live2' >> /root/ao_vivo_es/.env; \
+             grep INGEST_URL /root/ao_vivo_es/.env; \
              systemctl restart ao_vivo_es && \
              sleep 5 && \
              systemctl is-active ao_vivo_es && \
