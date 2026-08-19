@@ -1324,9 +1324,9 @@ def _montar_bloco_h(audio: Path) -> Path:
         "crop=1920:1080,setsar=1,fps=30[vout]"
     )
 
-    # P0-A (BUG 14): nice -n 19 + -threads 2 — o Assembler NUNCA disputa CPU
-    # com o transmissor. Encode saturava as 4 vCPU -> FFmpeg H caía abaixo de
-    # 1.0x -> YouTube encerrava o broadcast a cada workflow (3x/dia).
+    # P0-A (BUG 14): nice -n 19 + -threads 1 — o Assembler NUNCA disputa CPU
+    # com o transmissor. -threads 1 (antes 2) libera 3 CPUs pro transmissor;
+    # re-encoding 1080p30 ultrafast precisa de 2+ CPUs livres para speed > 1.0x.
     saida_tmp = saida.with_suffix(".tmp.mp4")
     cmd = [
         "nice", "-n", "19",
@@ -1342,7 +1342,7 @@ def _montar_bloco_h(audio: Path) -> Path:
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
-        "-threads", "2",
+        "-threads", "1",
         str(saida_tmp),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
@@ -1426,7 +1426,7 @@ def _montar_bloco_v(audio: Path) -> Path:
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
-        "-threads", "2",
+        "-threads", "1",
         str(saida_tmp),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
