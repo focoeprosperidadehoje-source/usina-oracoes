@@ -1,13 +1,13 @@
-name: 🎙️ Gerador de Áudio Live ES
+name: 🎙️ Gerador de Áudio Live PT
 
 on:
   schedule:
-    - cron: '0 6,12,18 * * *'   # 3×/dia: 6h, 12h, 18h UTC
+    - cron: '0 7,13,19 * * *'   # 3×/dia: 7h, 13h, 19h UTC (4h, 10h, 16h BRT)
   workflow_dispatch:              # disparo manual
 
 jobs:
   gerar_audio:
-    name: Gerar áudio (roteiro → TTS) → rsync VPS
+    name: Gerar áudio PT (roteiro → TTS) → rsync VPS
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -24,19 +24,18 @@ jobs:
             edge-tts \
             pytz
 
-      - name: Gerar áudio (roteiro → TTS)
+      - name: Gerar áudio PT (roteiro → TTS)
         env:
           GEMINI_KEY_LIVE_CONTENT_1: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_1 }}
           GEMINI_KEY_LIVE_CONTENT_2: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_2 }}
           GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
-          GOOGLE_CREDENTIALS_ES:     ${{ secrets.GOOGLE_CREDENTIALS }}
-          YOUTUBE_TOKEN_ES:          ${{ secrets.YOUTUBE_TOKEN_ES }}
-        run: python3 ao_vivo/gerar_bloco_live.py
+          YOUTUBE_TOKEN_PT:          ${{ secrets.YOUTUBE_TOKEN_PT }}
+        run: python3 ao_vivo_pt/gerar_bloco_live_pt.py
 
-      - name: Listar blocos gerados
+      - name: Listar blocos PT gerados
         run: |
-          echo "Blocos prontos para envio:"
-          ls -lh blocos/
+          echo "Blocos PT prontos para envio:"
+          ls -lh blocos_pt/ 2>/dev/null || echo "(nenhum)"
 
       - name: Configurar SSH para VPS
         env:
@@ -46,18 +45,15 @@ jobs:
           printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
           ssh-keyscan -H 80.241.213.27 >> ~/.ssh/known_hosts 2>/dev/null
-          echo "=== Diagnóstico SSH key ==="
-          head -1 ~/.ssh/vps_key
-          wc -l ~/.ssh/vps_key
           ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
             root@80.241.213.27 "echo SSH_TEST_OK && hostname" || true
 
-      - name: Enviar blocos para VPS via rsync
+      - name: Enviar blocos PT para VPS via rsync
         run: |
           rsync -avz --progress \
             -e "ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no" \
-            blocos/ \
-            root@80.241.213.27:/root/ao_vivo_es/blocos/
+            blocos_pt/ \
+            root@80.241.213.27:/root/ao_vivo_pt/blocos/
 
       - name: Remover chave SSH temporária
         if: always()

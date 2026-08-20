@@ -1,0 +1,77 @@
+name: Deploy ao_vivo_pt.py → VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ao_vivo_pt/ao_vivo_pt.py'   # auto-deploy sempre que ao_vivo_pt.py mudar
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'deploy = atualizar ao_vivo_pt.py | log = ler log | status = status + log recente'
+        required: false
+        default: 'deploy'
+
+jobs:
+  deploy:
+    name: SCP ao_vivo_pt.py + pip install Pillow + restart
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH para VPS
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY_VPS_ES }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H 80.241.213.27 >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Ler log PT (modo=log)
+        if: ${{ github.event.inputs.modo == 'log' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            echo '=== AO VIVO PT LOG (últimas 60 linhas) ===';
+            tail -60 /root/ao_vivo_pt/ao_vivo.log 2>/dev/null || echo 'sem log';
+          "
+
+      - name: Enviar ao_vivo_pt.py para VPS
+        if: ${{ github.event.inputs.modo == 'deploy' || github.event_name == 'push' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
+            "mkdir -p /root/ao_vivo_pt"
+          scp -i ~/.ssh/vps_key -o StrictHostKeyChecking=no \
+            ao_vivo_pt/ao_vivo_pt.py \
+            root@80.241.213.27:/root/ao_vivo_pt/ao_vivo_pt.py
+
+      - name: Instalar Pillow + reiniciar serviço PT
+        if: ${{ github.event.inputs.modo == 'deploy' || github.event_name == 'push' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
+            "apt-get install -y python3-pil --no-install-recommends -qq 2>&1 | tail -3 && \
+             systemctl restart ao_vivo_pt 2>/dev/null || echo 'SERVICO_PT_NAO_INSTALADO_AINDA' && \
+             sleep 5 && \
+             systemctl is-active ao_vivo_pt 2>/dev/null || echo 'aguardando_service_install' && \
+             echo DEPLOY_PT_OK"
+
+      - name: Status + log recente PT (modo=status)
+        if: ${{ github.event.inputs.modo == 'status' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            systemctl status ao_vivo_pt --no-pager -l 2>/dev/null | tail -20 || echo 'serviço PT não instalado'
+            echo '--- AO_VIVO PT LOG (últimas 40 linhas) ---'
+            tail -40 /root/ao_vivo_pt/ao_vivo.log 2>/dev/null || echo 'sem log'
+            echo '--- FFMPEG_H PT SPEED ---'
+            tail -c 2000 /root/ao_vivo_pt/ffmpeg_h.log 2>/dev/null | tr '\r' '\n' | grep -E 'speed=|fps=' | tail -5 || echo 'sem dados'
+            echo '--- CPU LOAD ---'
+            top -bn1 | head -5
+            echo '--- DISCO ---'
+            df -h /root 2>/dev/null | tail -2
+          "
+
+      - name: Remover chave SSH temporária
+        if: always()
+        run: rm -f ~/.ssh/vps_key
