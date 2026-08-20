@@ -809,25 +809,46 @@ def _aplicar_thumbnail(yt, bid: str):
         top  = (new_h - h) // 2
         bg   = bg.crop((left, top, left + w, top + h))
 
-        draw = ImageDraw.Draw(bg, "RGBA")
-        draw.rectangle([(0, 0), (w, h)], fill=(0, 0, 0, 155))
-        draw.rectangle([(0, 0), (w, 8)], fill=(220, 30, 30, 255))
-        draw.text((16, 16), "● AO VIVO AGORA", font=_fonte(30), fill=(220, 30, 30, 255))
+        # Gradiente suave só na metade inferior — Aparecida visível no topo
+        overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        ov_draw = ImageDraw.Draw(overlay)
+        grad_start = int(h * 0.42)
+        for y_line in range(grad_start, h):
+            t = (y_line - grad_start) / (h - grad_start)
+            alpha = int(t * 200)
+            ov_draw.line([(0, y_line), (w, y_line)], fill=(0, 0, 0, alpha))
+        bg = Image.alpha_composite(bg.convert("RGBA"), overlay).convert("RGB")
 
-        f_titulo = _fonte(70)
-        total_h_px = sum(draw.textbbox((0, 0), l, font=f_titulo)[3] for l in linhas) + 10 * (len(linhas) - 1)
-        y = (h - total_h_px) // 2
+        draw = ImageDraw.Draw(bg, "RGBA")
+
+        # Badge "AO VIVO" — canto superior esquerdo com fundo vermelho
+        f_vivo = _fonte(26)
+        badge_txt = " ● AO VIVO AGORA "
+        bb = draw.textbbox((0, 0), badge_txt, font=f_vivo)
+        bh_badge = bb[3] - bb[1]
+        draw.rectangle([(14, 14), (14 + bb[2] + 6, 14 + bh_badge + 8)], fill=(210, 20, 20, 240))
+        draw.text((18, 18), badge_txt, font=f_vivo, fill=(255, 255, 255, 255))
+
+        # Título — na parte inferior (55% da altura para baixo)
+        f_titulo = _fonte(74)
+        total_h_px = sum(draw.textbbox((0, 0), l, font=f_titulo)[3] for l in linhas) + 12 * (len(linhas) - 1)
+        y = int(h * 0.52)
         for linha in linhas:
             bbox = draw.textbbox((0, 0), linha, font=f_titulo)
             lw   = bbox[2] - bbox[0]
+            lh   = bbox[3] - bbox[1]
+            # Sombra para legibilidade
+            draw.text(((w - lw) // 2 + 2, y + 2), linha, font=f_titulo, fill=(0, 0, 0, 180))
             draw.text(((w - lw) // 2, y), linha, font=f_titulo, fill=(255, 255, 255, 255))
-            y += bbox[3] + 10
+            y += lh + 12
 
-        draw.rectangle([(w // 8, h - 70), (w - w // 8, h - 67)], fill=(212, 175, 55, 200))
+        # Linha dourada + brand na base
+        draw.rectangle([(w // 10, h - 56), (w - w // 10, h - 53)], fill=(212, 175, 55, 230))
         brand = "Nossa Senhora Aparecida · Oração 24 Horas"
-        bbox  = draw.textbbox((0, 0), brand, font=_fonte(38))
+        f_brand = _fonte(34)
+        bbox  = draw.textbbox((0, 0), brand, font=f_brand)
         bw    = bbox[2] - bbox[0]
-        draw.text(((w - bw) // 2, h - 60), brand, font=_fonte(38), fill=(212, 175, 55, 255))
+        draw.text(((w - bw) // 2, h - 48), brand, font=f_brand, fill=(212, 175, 55, 255))
 
         buf = BytesIO()
         bg.save(buf, format="JPEG", quality=90)
