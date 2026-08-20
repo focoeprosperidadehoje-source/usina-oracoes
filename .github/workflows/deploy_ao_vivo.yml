@@ -59,6 +59,7 @@ jobs:
              sed -i 's|^INGEST_URL=.*|INGEST_URL=rtmp://a.rtmp.youtube.com/live2|' /root/ao_vivo_es/.env; \
              grep -q INGEST_URL /root/ao_vivo_es/.env || echo 'INGEST_URL=rtmp://a.rtmp.youtube.com/live2' >> /root/ao_vivo_es/.env; \
              grep INGEST_URL /root/ao_vivo_es/.env; \
+             grep -q 'ionice' /root/ao_vivo_es/limpar_disco.sh || sed -i '2i ionice -c 3 -p \$\$ 2>/dev/null; renice -n 19 -p \$\$ 2>/dev/null' /root/ao_vivo_es/limpar_disco.sh && echo 'limpar_disco.sh: ionice OK'; \
              systemctl restart ao_vivo_es && \
              sleep 5 && \
              systemctl is-active ao_vivo_es && \
