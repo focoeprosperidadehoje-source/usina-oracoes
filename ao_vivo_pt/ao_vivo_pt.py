@@ -103,6 +103,8 @@ SUPLICA_GERAR_OFFSET = 22 * 60
 ROLLING_INICIAIS     = 3
 ROLLING_ANTECIPACAO  = 1500
 SUPLICA_INTERVAL     = 30 * 60
+SUPLICA_MAX_READY    = 8              # máx súplicas prontas (cap de CPU)
+ASSEMBLER_BLOCOS_MAX = 8             # máx blocos H prontos — assembler dorme acima disso
 DURACAO_CICLO_SEG    = 6 * 3600
 BLOCOS_MINIMOS       = 1
 
@@ -531,7 +533,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, imgs_dir: Path):
         cmd = ["ffmpeg", "-y",
                "-f", "lavfi", "-i", "color=c=0x1a0a2e:s=1920x1080:r=30",
                "-i", str(audio), "-t", str(dur),
-               "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+               "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
                "-g", "60", "-keyint_min", "30",
                "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", str(saida)]
         _run_ffmpeg(cmd, f"suplica cor {saida.name}")
@@ -569,7 +571,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, imgs_dir: Path):
         "-filter_complex", f"{vfiltro};{afiltro}",
         "-map", "[vout]", "-map", "[aout]",
         "-t", str(dur),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "26",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-r", "30", "-pix_fmt", "yuv420p",
         str(saida),
@@ -1029,6 +1031,18 @@ def loop_assembler():
     log.info("Assembler PT iniciado — aguardando audio_*.mp3 em blocos/")
     while not _ev_parar.is_set():
         try:
+            blocos_h = len(list(DIR_BLOCOS.glob("bloco_*_h.mp4")))
+            if blocos_h >= ASSEMBLER_BLOCOS_MAX:
+                log.info(f"Assembler PT: cap atingido ({blocos_h}/{ASSEMBLER_BLOCOS_MAX}) — aguardando slot livre")
+                now = time.time()
+                for audio in list(DIR_BLOCOS.glob("audio_*.mp3")):
+                    ts = audio.stem.replace("audio_", "")
+                    bloco_existe = (DIR_BLOCOS / f"bloco_{ts}_h.mp4").exists()
+                    audio_antigo = (now - audio.stat().st_mtime) > 86400
+                    if bloco_existe or audio_antigo:
+                        audio.unlink(missing_ok=True)
+                _ev_parar.wait(timeout=300)
+                continue
             for audio in sorted(DIR_BLOCOS.glob("audio_*.mp3")):
                 ts      = audio.stem.replace("audio_", "")
                 bloco_h = DIR_BLOCOS / f"bloco_{ts}_h.mp4"
@@ -1122,10 +1136,14 @@ def loop_transmissor():
                         proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, "H")
 
                     if not _ev_suplica_gerar.is_set() and (time.time() - ultimo_suplica) >= SUPLICA_INTERVAL:
-                        _ev_suplica_gerar.set()
-                        _ev_suplica_pronta.clear()
+                        sups_prontas = len(list(DIR_SUPLICAS.glob("suplica_*_h.mp4")))
+                        if sups_prontas < SUPLICA_MAX_READY:
+                            _ev_suplica_gerar.set()
+                            _ev_suplica_pronta.clear()
+                            log.info(f"Súplicas PT: disparando geração ({sups_prontas} prontas)")
+                        else:
+                            log.info(f"Súplicas PT: cap atingido ({sups_prontas}/{SUPLICA_MAX_READY}) — skip")
                         ultimo_suplica = time.time()
-                        log.info("Súplicas PT: disparando geração (timer 30min)")
 
                     if _ev_suplica_pronta.is_set():
                         with _lock_suplica:
