@@ -113,6 +113,7 @@ ROLLING_INICIAIS    = 3              # blocos na playlist inicial (rolling)
 ROLLING_ANTECIPACAO = 1500           # appendar quando buffer < 25min (margem segura)
 SUPLICA_INTERVAL    = 30 * 60        # gerar súplica a cada 30min
 SUPLICA_MAX_READY   = 8              # máx súplicas prontas no disco (cap de CPU)
+ASSEMBLER_BLOCOS_MAX = 8             # máx blocos H prontos — acima disso assembler dorme (não disputar CPU)
 DURACAO_CICLO_SEG    = 6 * 3600      # 6h por broadcast
 BLOCOS_MINIMOS       = 1             # mínimo de blocos para iniciar transmissão
 
@@ -1373,8 +1374,8 @@ def _montar_bloco_h(audio: Path) -> Path:
         "crop=1920:1080,setsar=1,fps=30[vout]"
     )
 
-    # Transmissor agora usa stream copy (zero CPU). Assembler pode usar 2 threads
-    # sem disputar com o transmissor — monta blocos ~2x mais rápido.
+    # Transmissor usa libx264 3000k — assembler NÃO deve rodar simultâneo.
+    # Cap ASSEMBLER_BLOCOS_MAX garante que o assembler dorme quando há blocos suficientes.
     saida_tmp = saida.with_suffix(".tmp.mp4")
     cmd = [
         "nice", "-n", "19",
@@ -1494,6 +1495,16 @@ def loop_assembler():
     log.info("Assembler iniciado — aguardando audio_*.mp3 em blocos/")
     while not _ev_parar.is_set():
         try:
+            blocos_h = len(list(DIR_BLOCOS.glob("bloco_*_h.mp4")))
+            if blocos_h >= ASSEMBLER_BLOCOS_MAX:
+                log.info(f"Assembler: cap atingido ({blocos_h}/{ASSEMBLER_BLOCOS_MAX}) — aguardando slot livre")
+                # Descarta audio_*.mp3 órfãos (bloco já existe ou é descartável)
+                for audio in list(DIR_BLOCOS.glob("audio_*.mp3")):
+                    ts = audio.stem.replace("audio_", "")
+                    if (DIR_BLOCOS / f"bloco_{ts}_h.mp4").exists():
+                        audio.unlink(missing_ok=True)
+                _ev_parar.wait(timeout=300)
+                continue
             for audio in sorted(DIR_BLOCOS.glob("audio_*.mp3")):
                 ts      = audio.stem.replace("audio_", "")
                 bloco_h = DIR_BLOCOS / f"bloco_{ts}_h.mp4"
