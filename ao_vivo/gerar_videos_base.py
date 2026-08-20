@@ -30,9 +30,9 @@ from googleapiclient.discovery import build
 
 # ─── Config ────────────────────────────────────────────────────────────
 # Pasta padrão: Guadalupe horizontal (ES). Sobrescrever via env para PT/outros.
-DRIVE_FOLDER_ID = os.environ.get("DRIVE_FOLDER_ID", "1FSpmGvSZDleU4gUJePAj4t5h0ZoVSmEo")
-VIDEO_PREFIX    = os.environ.get("VIDEO_PREFIX", "guadalupe")
-NUM_VIDEOS      = int(os.environ.get("NUM_VIDEOS", "8"))
+DRIVE_FOLDER_ID = os.environ.get("DRIVE_FOLDER_ID") or "1FSpmGvSZDleU4gUJePAj4t5h0ZoVSmEo"
+VIDEO_PREFIX    = os.environ.get("VIDEO_PREFIX") or "guadalupe"
+NUM_VIDEOS      = int(os.environ.get("NUM_VIDEOS") or "8")
 IMG_POR_VIDEO   = 40        # imagens por vídeo → 40 × 15s = 600s = 10min
 SEG_POR_IMAGEM  = 15        # duração de cada imagem em segundos
 TARGET_W        = 1920
