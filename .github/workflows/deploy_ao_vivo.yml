@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'deploy = atualizar ao_vivo.py | log = ler log | disable_v = comentar STREAM_KEY_V no .env | status = status + log recente'
+        description: 'deploy = atualizar ao_vivo.py | log = ler log | disable_v = comentar STREAM_KEY_V no .env | status = status + log recente | flush_blocos = deletar blocos 1080p para forçar geração 720p'
         required: false
         default: 'deploy'
 
@@ -93,6 +93,26 @@ jobs:
             ps aux --sort=-%cpu | head -20
             echo '--- DISCO ---'
             df -h /root 2>/dev/null | tail -2
+          "
+
+      - name: Flush blocos 1080p (modo=flush_blocos)
+        if: ${{ github.event.inputs.modo == 'flush_blocos' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            echo '--- BLOCOS ANTES DO FLUSH ---'
+            ls /root/ao_vivo_es/blocos/*.mp4 2>/dev/null | wc -l
+            echo '--- AUDIOS DISPONÍVEIS PARA ASSEMBLER ---'
+            ls /root/ao_vivo_es/blocos/audio_*.mp3 2>/dev/null | wc -l
+            ls /root/ao_vivo_es/blocos/audio_*.mp3 2>/dev/null | head -5 || echo 'nenhum audio encontrado'
+            echo '--- DELETANDO TODOS OS BLOCOS MP4 ---'
+            find /root/ao_vivo_es/blocos/ -name '*.mp4' -delete
+            echo '--- BLOCOS APÓS FLUSH ---'
+            ls /root/ao_vivo_es/blocos/*.mp4 2>/dev/null | wc -l
+            echo '--- REINICIANDO SERVIÇO ---'
+            systemctl restart ao_vivo_es
+            sleep 5
+            systemctl is-active ao_vivo_es
+            echo FLUSH_OK
           "
 
       - name: Remover chave SSH temporária
