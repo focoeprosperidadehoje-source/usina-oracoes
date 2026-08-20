@@ -1249,7 +1249,7 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
         rel_playlist = str(playlist)
 
     cmd = [
-        "ffmpeg", "-re",
+        "ffmpeg",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
         "-c:v", "libx264", "-preset", "ultrafast",
