@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'deploy = atualizar ao_vivo.py | log = ler log | disable_v = comentar STREAM_KEY_V no .env | status = status + log recente'
+        description: 'deploy | log | disable_v | status | oauth_url_pt | oauth_save_pt'
         required: false
         default: 'deploy'
+      auth_code:
+        description: 'Código OAuth PT (só para modo oauth_save_pt)'
+        required: false
+        default: ''
 
 jobs:
   deploy:
@@ -92,6 +96,102 @@ jobs:
             echo '--- DISCO ---'
             df -h /root 2>/dev/null | tail -2
           "
+
+      - name: Gerar URL OAuth PT (modo=oauth_url_pt)
+        if: ${{ github.event.inputs.modo == 'oauth_url_pt' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            pip3 install google-auth-oauthlib -q
+            mkdir -p /root/ao_vivo_pt
+            python3 - <<'PYEOF'
+import json, os
+from pathlib import Path
+from google_auth_oauthlib.flow import Flow
+
+with open('/root/ao_vivo_es/youtube_token.json') as f:
+    es = json.load(f)
+
+client_config = {
+    'installed': {
+        'client_id':     es['client_id'],
+        'client_secret': es['client_secret'],
+        'auth_uri':      'https://accounts.google.com/o/oauth2/auth',
+        'token_uri':     'https://oauth2.googleapis.com/token',
+        'redirect_uris': ['urn:ietf:wg:oauth:2.0:oob', 'http://localhost'],
+    }
+}
+SCOPES = [
+    'https://www.googleapis.com/auth/youtube',
+    'https://www.googleapis.com/auth/youtube.force-ssl',
+    'https://www.googleapis.com/auth/youtube.upload',
+]
+flow = Flow.from_client_config(client_config, SCOPES, redirect_uri='urn:ietf:wg:oauth:2.0:oob')
+auth_url, state = flow.authorization_url(access_type='offline', prompt='consent')
+
+# salva estado para o próximo passo
+with open('/root/ao_vivo_pt/oauth_state.json', 'w') as f:
+    json.dump({'state': state, 'client_config': client_config}, f)
+
+print()
+print('======================================================')
+print('PASSO 1 — Abra esta URL no navegador:')
+print()
+print(auth_url)
+print()
+print('Escolha o Canal PT, autorize, copie o código mostrado.')
+print('Depois rode este workflow com modo=oauth_save_pt')
+print('e cole o código no campo auth_code.')
+print('======================================================')
+PYEOF
+          "
+
+      - name: Salvar Token OAuth PT (modo=oauth_save_pt)
+        if: ${{ github.event.inputs.modo == 'oauth_save_pt' }}
+        env:
+          AUTH_CODE: ${{ github.event.inputs.auth_code }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 \
+            "AUTH_CODE='$AUTH_CODE' python3 - <<'PYEOF'
+import json, os, base64
+from google_auth_oauthlib.flow import Flow
+
+with open('/root/ao_vivo_pt/oauth_state.json') as f:
+    saved = json.load(f)
+
+SCOPES = [
+    'https://www.googleapis.com/auth/youtube',
+    'https://www.googleapis.com/auth/youtube.force-ssl',
+    'https://www.googleapis.com/auth/youtube.upload',
+]
+flow = Flow.from_client_config(
+    saved['client_config'], SCOPES,
+    redirect_uri='urn:ietf:wg:oauth:2.0:oob',
+    state=saved['state']
+)
+flow.fetch_token(code=os.environ['AUTH_CODE'])
+creds = flow.credentials
+
+token_data = {
+    'token':         creds.token,
+    'refresh_token': creds.refresh_token,
+    'token_uri':     creds.token_uri,
+    'client_id':     creds.client_id,
+    'client_secret': creds.client_secret,
+    'scopes':        list(creds.scopes),
+}
+with open('/root/ao_vivo_pt/youtube_token.json', 'w') as f:
+    json.dump(token_data, f, indent=2)
+
+b64 = base64.b64encode(open('/root/ao_vivo_pt/youtube_token.json','rb').read()).decode()
+print()
+print('=== TOKEN PT SALVO NO VPS ✅ ===')
+print('Cole o valor abaixo como secret YOUTUBE_TOKEN_PT no GitHub:')
+print()
+print(b64)
+print()
+print('================================')
+PYEOF
+"
 
       - name: Remover chave SSH temporária
         if: always()
