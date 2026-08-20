@@ -1220,7 +1220,6 @@ def _cmd_stream(arquivo: Path, sk: str, ing: str, res: str, bitrate: str) -> lis
     return [
         "ffmpeg", "-re",
         "-i", str(arquivo),
-        "-vf", "scale=1280:720",
         "-c:v", "libx264", "-preset", "ultrafast",
         "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
         "-g", "60", "-keyint_min", "30",
@@ -1253,7 +1252,6 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
         "ffmpeg",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
-        "-vf", "scale=1280:720",
         "-c:v", "libx264", "-preset", "ultrafast",
         "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
         "-g", "60", "-keyint_min", "30",
@@ -1396,11 +1394,11 @@ def _montar_bloco_h(audio: Path) -> Path:
         afiltro = "[1:a]volume=1.0[aout]"
 
     vfiltro = (
-        "[0:v]scale=1920:1080:force_original_aspect_ratio=increase,"
-        "crop=1920:1080,setsar=1,fps=30[vout]"
+        "[0:v]scale=1280:720:force_original_aspect_ratio=increase,"
+        "crop=1280:720,setsar=1,fps=30[vout]"
     )
 
-    # Transmissor usa libx264 3000k — assembler NÃO deve rodar simultâneo.
+    # Transmissor usa libx264 2500k — assembler NÃO deve rodar simultâneo.
     # Cap ASSEMBLER_BLOCOS_MAX garante que o assembler dorme quando há blocos suficientes.
     saida_tmp = saida.with_suffix(".tmp.mp4")
     cmd = [
@@ -1413,7 +1411,7 @@ def _montar_bloco_h(audio: Path) -> Path:
         "-map", "[vout]", "-map", "[aout]",
         "-t", str(dur),
         "-c:v", "libx264", "-preset", "ultrafast",
-        "-b:v", "3500k", "-maxrate", "3500k", "-bufsize", "7000k",
+        "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
