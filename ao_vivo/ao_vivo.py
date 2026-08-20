@@ -8,7 +8,7 @@ Threads:
   SUPLICAS    — segmento 2-3min de intercessão personalizada a cada bloco
   MONITOR     — saúde do disco e alertas de estoque mínimo
 
-Blocos base (27min H+V) chegam via rsync do GitHub Actions 3×/dia.
+Blocos base (20min H) chegam via rsync do GitHub Actions 3×/dia.
 VPS não encoda blocos longos — só transmite + gera segmentos curtos de súplicas.
 """
 
@@ -363,8 +363,10 @@ MIN_BLOCO_BYTES = 10 * 1024 * 1024  # 10 MB — blocos reais têm no mínimo ~30
 
 def listar_blocos() -> list[tuple[Path, Path]]:
     """Lista pares (h, v) disponíveis em DIR_BLOCOS, ordenados por nome.
-    V é opcional — se não existir, retorna H como fallback (V stream desativado).
-    Ignora arquivos menores que MIN_BLOCO_BYTES (concat .txt renomeados ou corrompidos)."""
+    Quando STREAM_KEY_V vazio (V desativado), blocos H sem par V são incluídos
+    com (h, h) como fallback — evita stream offline quando pares H+V antigos
+    forem limpos pelo cron.
+    Ignora arquivos menores que MIN_BLOCO_BYTES (corrompidos ou temp)."""
     hs = sorted(DIR_BLOCOS.glob("*_h.mp4"))
     resultado = []
     for h in hs:
@@ -377,7 +379,8 @@ def listar_blocos() -> list[tuple[Path, Path]]:
         v = Path(str(h).replace("_h.mp4", "_v.mp4"))
         if v.exists():
             resultado.append((h, v))
-        # blocos sem _v.mp4 sao ignorados — evita H na playlist V
+        elif not STREAM_KEY_V:
+            resultado.append((h, h))  # V desativado — H-only incluído com fallback
     return resultado
 
 def _proximo_bloco() -> tuple[Path, Path]:
@@ -584,7 +587,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
         cmd = ["ffmpeg", "-y",
                "-f", "lavfi", "-i", f"color=c=0x1a0a2e:s={res}:r=30",
                "-i", str(audio), "-t", str(dur),
-               "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+               "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
                "-g", "60", "-keyint_min", "30",
                "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", str(saida)]
         _run_ffmpeg(cmd, f"suplica cor {saida.name}")
@@ -626,7 +629,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
         "-filter_complex", f"{vfiltro};{afiltro}",
         "-map", "[vout]", "-map", "[aout]",
         "-t", str(dur),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "26",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-r", "30", "-pix_fmt", "yuv420p",
         str(saida),
@@ -1123,7 +1126,9 @@ def _ativar_transmissao_dupla(yt, bid: str):
         if not items:
             log.warning(f"[DUPLA] Broadcast {bid} não encontrado")
             return
-        video_id = items[0]["snippet"].get("videoId", "")
+        # broadcast ID = video ID no YouTube Live; snippet.videoId é documentado mas
+        # nem sempre presente — usar bid como fallback garantido
+        video_id = items[0]["snippet"].get("videoId", "") or bid
         if not video_id:
             log.warning(f"[DUPLA] videoId não encontrado para broadcast {bid}")
             return
@@ -1498,10 +1503,14 @@ def loop_assembler():
             blocos_h = len(list(DIR_BLOCOS.glob("bloco_*_h.mp4")))
             if blocos_h >= ASSEMBLER_BLOCOS_MAX:
                 log.info(f"Assembler: cap atingido ({blocos_h}/{ASSEMBLER_BLOCOS_MAX}) — aguardando slot livre")
-                # Descarta audio_*.mp3 órfãos (bloco já existe ou é descartável)
+                # Descarta audio_*.mp3 cujo bloco já existe OU com mais de 24h
+                # (áudios chegam 3x/dia via rsync — sem limpeza acumulam indefinidamente)
+                now = time.time()
                 for audio in list(DIR_BLOCOS.glob("audio_*.mp3")):
                     ts = audio.stem.replace("audio_", "")
-                    if (DIR_BLOCOS / f"bloco_{ts}_h.mp4").exists():
+                    bloco_existe = (DIR_BLOCOS / f"bloco_{ts}_h.mp4").exists()
+                    audio_antigo = (now - audio.stat().st_mtime) > 86400  # 24h
+                    if bloco_existe or audio_antigo:
                         audio.unlink(missing_ok=True)
                 _ev_parar.wait(timeout=300)
                 continue
