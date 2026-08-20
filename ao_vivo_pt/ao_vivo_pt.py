@@ -1034,7 +1034,7 @@ def _montar_bloco_h(audio: Path) -> Path:
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
-        "-threads", "2",
+        "-threads", "1",
         str(saida_tmp),
     ]
     log.info(f"Assembler PT: montando {saida.name} ({dur//60}min)...")

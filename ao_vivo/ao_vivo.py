@@ -1415,11 +1415,11 @@ def _montar_bloco_h(audio: Path) -> Path:
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
-        "-threads", "2",
+        "-threads", "1",
         str(saida_tmp),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
-    # timeout ampliado: com -threads 2 + nice o encode pode levar bem mais tempo
+    # timeout ampliado: com -threads 1 + nice o encode pode levar ~35min para 20min de vídeo
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=2700)
     concat_file.unlink(missing_ok=True)
     if result.returncode != 0:
@@ -1499,7 +1499,7 @@ def _montar_bloco_v(audio: Path) -> Path:
         "-g", "60", "-keyint_min", "30",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-r", "30", "-pix_fmt", "yuv420p",
-        "-threads", "2",
+        "-threads", "1",
         str(saida_tmp),
     ]
     log.info(f"Assembler: montando {saida.name} ({dur//60}min, {len(vids_shuffled)} vídeos base)...")
