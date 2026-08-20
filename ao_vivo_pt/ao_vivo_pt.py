@@ -113,16 +113,14 @@ VOZ_PITCH    = "-8Hz"
 MODELOS_LIVE = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
 CHAVES_CONTEUDO = [c for c in [
-    os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
-    os.environ.get("GEMINI_KEY_LIVE_CONTENT_2", ""),
-    os.environ.get("GEMINI_API_KEY", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CONTENT_1_PT", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CONTENT_2_PT", ""),
 ] if c]
 
 CHAVES_CHAT = [c for c in [
-    os.environ.get("GEMINI_KEY_LIVE_CHAT_1", ""),
-    os.environ.get("GEMINI_KEY_LIVE_CHAT_2", ""),
-    os.environ.get("GEMINI_KEY_LIVE_CHAT_3", ""),
-    os.environ.get("GEMINI_API_KEY", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CHAT_1_PT", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CHAT_2_PT", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CHAT_3_PT", ""),
 ] if c]
 
 PILARES = {

@@ -26,10 +26,9 @@ jobs:
 
       - name: Gerar áudio PT (roteiro → TTS)
         env:
-          GEMINI_KEY_LIVE_CONTENT_1: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_1 }}
-          GEMINI_KEY_LIVE_CONTENT_2: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_2 }}
-          GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
-          YOUTUBE_TOKEN_PT:          ${{ secrets.YOUTUBE_TOKEN_PT }}
+          GEMINI_KEY_LIVE_CONTENT_1_PT: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_1_PT }}
+          GEMINI_KEY_LIVE_CONTENT_2_PT: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_2_PT }}
+          YOUTUBE_TOKEN_PT:             ${{ secrets.YOUTUBE_TOKEN_PT }}
         run: python3 ao_vivo_pt/gerar_bloco_live_pt.py
 
       - name: Listar blocos PT gerados

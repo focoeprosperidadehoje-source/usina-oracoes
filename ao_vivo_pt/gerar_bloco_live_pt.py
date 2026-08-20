@@ -46,9 +46,8 @@ MODELOS_LITE = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash",
 MODELOS_FULL = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash"]
 
 CHAVES = [k for k in [
-    os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
-    os.environ.get("GEMINI_KEY_LIVE_CONTENT_2", ""),
-    os.environ.get("GEMINI_API_KEY", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CONTENT_1_PT", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CONTENT_2_PT", ""),
 ] if k]
 
 PILARES = {

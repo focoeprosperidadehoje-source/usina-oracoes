@@ -25,6 +25,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from io import BytesIO
+import urllib.request
+import urllib.error
 
 import pytz
 from dotenv import load_dotenv
@@ -110,6 +112,7 @@ TRANSICAO_ANTECIP    = 90            # append próximo conteúdo 90s antes do fi
 ROLLING_INICIAIS    = 3              # blocos na playlist inicial (rolling)
 ROLLING_ANTECIPACAO = 1500           # appendar quando buffer < 25min (margem segura)
 SUPLICA_INTERVAL    = 30 * 60        # gerar súplica a cada 30min
+SUPLICA_MAX_READY   = 8              # máx súplicas prontas no disco (cap de CPU)
 DURACAO_CICLO_SEG    = 6 * 3600      # 6h por broadcast
 BLOCOS_MINIMOS       = 1             # mínimo de blocos para iniciar transmissão
 
@@ -1105,8 +1108,47 @@ def _publicar_apos_golive(yt, bid: str, espera_seg: int = 60, timeout_seg: int =
         ).execute()
         log.info(f"Broadcast {bid} agora PÚBLICO (go-live foi não listado — validar sino)")
         _aplicar_thumbnail(yt, bid, modo)
+        if modo == "H":
+            _ativar_transmissao_dupla(yt, bid)
     except Exception as e:
         log.error(f"publicar: falha ao tornar {bid} público: {e}")
+
+
+def _ativar_transmissao_dupla(yt, bid: str):
+    """Ativa transmissão dupla (MULTI_ASPECT_MODE_CROP) via API interna do YouTube.
+    O YouTube gera automaticamente a versão 9:16 a partir da horizontal."""
+    try:
+        items = yt.liveBroadcasts().list(part="snippet", id=bid).execute().get("items", [])
+        if not items:
+            log.warning(f"[DUPLA] Broadcast {bid} não encontrado")
+            return
+        video_id = items[0]["snippet"].get("videoId", "")
+        if not video_id:
+            log.warning(f"[DUPLA] videoId não encontrado para broadcast {bid}")
+            return
+        creds = yt._http.credentials
+        token = getattr(creds, "token", None)
+        if not token:
+            log.warning("[DUPLA] Token OAuth não disponível para transmissão dupla")
+            return
+        payload = json.dumps({
+            "encryptedVideoId": video_id,
+            "multiAspectCreatorSettings": {"mode": "MULTI_ASPECT_MODE_CROP"},
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://www.youtube.com/youtubei/v1/video_manager/metadata_update",
+            data=payload,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            status = resp.status
+        if status == 200:
+            log.info(f"[DUPLA] Transmissão dupla ativada: broadcast {bid} → video {video_id}")
+        else:
+            log.warning(f"[DUPLA] Resposta inesperada {status} ao ativar transmissão dupla")
+    except Exception as e:
+        log.warning(f"[DUPLA] Erro ao ativar transmissão dupla: {e}")
 
 
 def _finalizar_broadcast(yt, bid: str):
@@ -1678,10 +1720,14 @@ def loop_transmissor():
 
                     # Timer de súplica (a cada SUPLICA_INTERVAL = 30min)
                     if not _ev_suplica_gerar.is_set() and (time.time() - ultimo_suplica) >= SUPLICA_INTERVAL:
-                        _ev_suplica_gerar.set()
-                        _ev_suplica_pronta.clear()
+                        sups_prontas = len(list(DIR_SUPLICAS.glob("suplica_*_h.mp4")))
+                        if sups_prontas < SUPLICA_MAX_READY:
+                            _ev_suplica_gerar.set()
+                            _ev_suplica_pronta.clear()
+                            log.info(f"Súplicas: disparando geração ({sups_prontas} prontas, timer 30min)")
+                        else:
+                            log.info(f"Súplicas: cap atingido ({sups_prontas}/{SUPLICA_MAX_READY}) — skip")
                         ultimo_suplica = time.time()
-                        log.info("Súplicas: disparando geração (timer 30min)")
 
                     # Inserir suplica quando pronta — independente do buffer
                     if _ev_suplica_pronta.is_set():
@@ -1709,6 +1755,7 @@ def loop_transmissor():
                                 buf_v += DURACAO_BLOCO_SEG
                             rot_idx_h = (rot_idx_h + 1) % len(blocos)
                             log.info(f"Bloco pos-suplica appendado: {h_next.name}")
+                            _limpar_suplicas_antigas()
 
                     # Rolling append de manutencao: buffer abaixo de ROLLING_ANTECIPACAO
                     buf_restante = buf_h - elapsed
