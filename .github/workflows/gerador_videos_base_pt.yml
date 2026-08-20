@@ -53,7 +53,8 @@ jobs:
           pip install --quiet \
             google-api-python-client \
             google-auth \
-            pillow
+            pillow \
+            numpy
 
       - name: Gerar vídeos base Aparecida (blur-fill, santa centralizada)
         env:
