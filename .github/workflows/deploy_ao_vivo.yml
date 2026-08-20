@@ -1,10 +1,6 @@
 name: Deploy ao_vivo.py + Pillow → VPS
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'ao_vivo/ao_vivo.py'   # auto-deploy sempre que ao_vivo.py mudar
   workflow_dispatch:
     inputs:
       modo:
