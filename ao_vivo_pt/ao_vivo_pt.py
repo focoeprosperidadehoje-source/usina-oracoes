@@ -882,6 +882,7 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, nome: str) -> subprocess.Pop
         "ffmpeg",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
+        "-vf", "scale=1280:720",
         "-c:v", "libx264", "-preset", "ultrafast",
         "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
         "-g", "60", "-keyint_min", "30",
