@@ -24,6 +24,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageFilter
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -38,6 +39,100 @@ SEG_POR_IMAGEM  = 15        # duração de cada imagem em segundos
 TARGET_W        = 1920
 TARGET_H        = 1080
 DIR_SAIDA       = Path("videos_base")
+
+
+# ─── Overlay de partículas douradas ────────────────────────────────────
+
+def _gerar_overlay_particulas(saida: Path, duracao_s: int = 20, fps: int = 30) -> Path | None:
+    """
+    Gera vídeo loop de partículas douradas ascendentes (fundo preto, blend=screen).
+    Retorna Path do arquivo ou None se falhar.
+    """
+    if saida.exists():
+        return saida
+
+    n_frames = duracao_s * fps
+    n = 400
+    rng = np.random.default_rng(42)
+
+    px   = rng.uniform(0, TARGET_W, n).astype(np.float32)
+    py   = rng.uniform(0, TARGET_H, n).astype(np.float32)
+    vx   = rng.uniform(-0.4, 0.4, n).astype(np.float32)
+    vy   = (rng.uniform(35, 55, n) / fps).astype(np.float32)
+    age  = rng.uniform(0, 80, n).astype(np.float32)
+    life = rng.uniform(60, 130, n).astype(np.float32)
+
+    CORES = np.array([
+        [255, 215,   0],
+        [255, 200,   0],
+        [255, 230, 110],
+        [255, 180,   0],
+        [255, 245, 160],
+    ], dtype=np.float32)
+    cor_idx = rng.integers(0, len(CORES), n)
+
+    tmp = saida.with_suffix(".ptmp.mp4")
+    cmd_ff = [
+        "ffmpeg", "-y",
+        "-f", "rawvideo", "-vcodec", "rawvideo",
+        "-s", f"{TARGET_W}x{TARGET_H}", "-pix_fmt", "rgb24", "-r", str(fps),
+        "-i", "pipe:0",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "25",
+        "-pix_fmt", "yuv420p", "-an",
+        str(tmp),
+    ]
+    proc = subprocess.Popen(cmd_ff, stdin=subprocess.PIPE,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(n_frames):
+            frame = np.zeros((TARGET_H, TARGET_W, 3), dtype=np.uint8)
+            py -= vy
+            px += vx
+            age += 1.0
+
+            mortas = (age >= life) | (py < -10)
+            if mortas.any():
+                m = int(mortas.sum())
+                px[mortas]  = rng.uniform(0, TARGET_W, m).astype(np.float32)
+                py[mortas]  = (TARGET_H + rng.uniform(0, 40, m)).astype(np.float32)
+                age[mortas] = 0.0
+                life[mortas] = rng.uniform(60, 130, m).astype(np.float32)
+                vy[mortas]  = (rng.uniform(35, 55, m) / fps).astype(np.float32)
+                vx[mortas]  = rng.uniform(-0.4, 0.4, m).astype(np.float32)
+                cor_idx[mortas] = rng.integers(0, len(CORES), m)
+
+            px %= TARGET_W
+            t    = np.clip(age / life, 0.0, 1.0)
+            fade = (np.sin(np.pi * t) * 0.90).astype(np.float32)
+            xi   = np.clip(px.astype(np.int32), 0, TARGET_W - 1)
+            yi   = np.clip(py.astype(np.int32), 0, TARGET_H - 1)
+            cores = (CORES[cor_idx] * fade[:, np.newaxis]).astype(np.uint8)
+
+            for dy, dx in [(0,0),(0,1),(0,-1),(1,0),(-1,0),(1,1),(-1,-1),(1,-1),(-1,1)]:
+                att = np.float32(1.0 if (dx == 0 and dy == 0) else 0.6)
+                yy = np.clip(yi + dy, 0, TARGET_H - 1)
+                xx = np.clip(xi + dx, 0, TARGET_W - 1)
+                np.maximum.at(frame, (yy, xx),
+                              (cores.astype(np.float32) * att).clip(0, 255).astype(np.uint8))
+
+            proc.stdin.write(frame.tobytes())
+
+        proc.stdin.close()
+        proc.wait()
+        if proc.returncode != 0:
+            raise RuntimeError("FFmpeg partículas falhou")
+        tmp.rename(saida)
+        print(f"  ✅ overlay partículas: {saida.name} ({n_frames} frames)")
+        return saida
+    except Exception as e:
+        try:
+            proc.stdin.close()
+        except Exception:
+            pass
+        proc.kill()
+        tmp.unlink(missing_ok=True)
+        print(f"  [WARN] Partículas falhou: {e} — vídeos sem efeito dourado.")
+        return None
 
 
 # ─── Drive ─────────────────────────────────────────────────────────────
@@ -114,8 +209,8 @@ def blur_fill(src: Path, dest: Path, w: int = TARGET_W, h: int = TARGET_H):
 
 # ─── Criação do vídeo slideshow ─────────────────────────────────────────
 
-def criar_slideshow(imagens: list[Path], saida: Path):
-    """Encoda vídeo mudo 1920x1080 com keyframe a cada 2s (compatível com stream copy)."""
+def criar_slideshow(imagens: list[Path], saida: Path, overlay: Path | None = None):
+    """Encoda vídeo mudo 1920x1080. Se overlay fornecido, aplica partículas douradas (blend=screen)."""
     if saida.exists():
         print(f"  {saida.name} já existe — pulando.")
         return
@@ -130,18 +225,38 @@ def criar_slideshow(imagens: list[Path], saida: Path):
     concat.write_text("\n".join(linhas))
 
     tmp = saida.with_suffix(".tmp.mp4")
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", str(concat),
-        "-vf", f"scale={TARGET_W}:{TARGET_H},setsar=1,fps=30",
-        "-c:v", "libx264", "-preset", "faster", "-crf", "22",
-        "-g", "60", "-keyint_min", "30",
-        "-pix_fmt", "yuv420p",
-        "-an",
-        str(tmp),
-    ]
 
-    print(f"  FFmpeg: {saida.name} ({len(imagens)} imagens × {SEG_POR_IMAGEM}s)...", flush=True)
+    if overlay and overlay.exists():
+        vf = (
+            f"[0:v]scale={TARGET_W}:{TARGET_H},setsar=1,fps=30[base];"
+            f"[1:v]scale={TARGET_W}:{TARGET_H},fps=30[p];"
+            "[base][p]blend=all_mode=screen:all_opacity=0.30[v]"
+        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0", "-i", str(concat),
+            "-stream_loop", "-1", "-i", str(overlay),
+            "-filter_complex", vf,
+            "-map", "[v]",
+            "-c:v", "libx264", "-preset", "faster", "-crf", "22",
+            "-g", "60", "-keyint_min", "30",
+            "-pix_fmt", "yuv420p", "-an",
+            str(tmp),
+        ]
+        label = f"{len(imagens)} imgs × {SEG_POR_IMAGEM}s + partículas"
+    else:
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0", "-i", str(concat),
+            "-vf", f"scale={TARGET_W}:{TARGET_H},setsar=1,fps=30",
+            "-c:v", "libx264", "-preset", "faster", "-crf", "22",
+            "-g", "60", "-keyint_min", "30",
+            "-pix_fmt", "yuv420p", "-an",
+            str(tmp),
+        ]
+        label = f"{len(imagens)} imgs × {SEG_POR_IMAGEM}s"
+
+    print(f"  FFmpeg: {saida.name} ({label})...", flush=True)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
     concat.unlink(missing_ok=True)
 
@@ -164,6 +279,10 @@ def main():
     print("=" * 60)
 
     DIR_SAIDA.mkdir(parents=True, exist_ok=True)
+
+    # Gerar overlay de partículas uma única vez — reutilizado em todos os vídeos
+    overlay_path = DIR_SAIDA / "_particulas_loop.mp4"
+    overlay = _gerar_overlay_particulas(overlay_path)
 
     drive = get_drive()
     todas = listar_imagens(drive, DRIVE_FOLDER_ID)
@@ -208,7 +327,7 @@ def main():
             ts    = datetime.datetime.utcnow().strftime("%Y%m%d")
             saida = DIR_SAIDA / f"{VIDEO_PREFIX}_{ts}_{v+1:02d}.mp4"
             try:
-                criar_slideshow(imgs_proc, saida)
+                criar_slideshow(imgs_proc, saida, overlay=overlay)
                 criados += 1
             except Exception as e:
                 print(f"  [ERRO] vídeo {v+1}: {e}")

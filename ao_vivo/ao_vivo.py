@@ -584,11 +584,12 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
         imgs = list(outro.glob("*.jpg")) + list(outro.glob("*.png"))
     if not imgs:
         # cor sólida como último recurso
-        cmd = ["ffmpeg", "-y",
+        cmd = ["nice", "-n", "19",
+               "ffmpeg", "-y",
                "-f", "lavfi", "-i", f"color=c=0x1a0a2e:s={res}:r=30",
                "-i", str(audio), "-t", str(dur),
                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-               "-g", "60", "-keyint_min", "30",
+               "-g", "60", "-keyint_min", "30", "-threads", "2",
                "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", str(saida)]
         _run_ffmpeg(cmd, f"suplica cor {saida.name}")
         return
@@ -623,6 +624,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
         f"crop={w}:{h},setsar=1,fps=30[vout]"
     )
     cmd = [
+        "nice", "-n", "19",
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0", "-i", str(concat_file),
         *inputs,
@@ -630,7 +632,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
         "-map", "[vout]", "-map", "[aout]",
         "-t", str(dur),
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
-        "-g", "60", "-keyint_min", "30",
+        "-g", "60", "-keyint_min", "30", "-threads", "2",
         "-c:a", "aac", "-b:a", "128k", "-r", "30", "-pix_fmt", "yuv420p",
         str(saida),
     ]
