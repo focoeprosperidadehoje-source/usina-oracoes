@@ -89,6 +89,8 @@ jobs:
             journalctl -u ao_vivo_es --no-pager -n 20 2>/dev/null || echo 'sem journal'
             echo '--- CPU LOAD ---'
             top -bn1 | head -5
+            echo '--- TOP PROCESSOS POR CPU ---'
+            ps aux --sort=-%cpu | head -20
             echo '--- DISCO ---'
             df -h /root 2>/dev/null | tail -2
           "
