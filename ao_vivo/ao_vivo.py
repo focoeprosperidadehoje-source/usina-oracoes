@@ -146,14 +146,36 @@ PILARES = {
     6: "Milagros y Gratitud",
 }
 
+# Pilares de alta retenção — sempre presentes como tema complementar
+_PILARES_ALTA_RETENCAO = "Liberación de Vicios y Ataduras, Restauración Familiar y Matrimonial"
+
+# Pilares rotativos para horário de tarde (excluindo os de pico)
+_PILARES_TARDE = [PILARES[0], PILARES[3], PILARES[4], PILARES[5], PILARES[6]]
+
+def _pilar_por_horario(hora: int, weekday: int) -> tuple[str, str]:
+    """Retorna (pilar_primário, temas_complementares) por faixa horária.
+    Pico 18h-00h: Liberação e Restauração alternados (maior retenção confirmada).
+    Manhã: Restauração Familiar. Tarde: pilares rotativos menos comuns.
+    Madrugada: Guerra Espiritual (proteção noturna).
+    """
+    if hora < 5:
+        primario = PILARES[0]
+    elif hora < 12:
+        primario = PILARES[2]
+    elif hora < 18:
+        primario = _PILARES_TARDE[weekday % len(_PILARES_TARDE)]
+    else:
+        primario = PILARES[1] if (hora % 2 == 0) else PILARES[2]
+    return primario, _PILARES_ALTA_RETENCAO
+
 RTMP_BASE = "rtmp://a.rtmp.youtube.com/live2"
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT_ALT  = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 
 _THUMB_LINHAS = {
-    "manha": ["FUERZA Y", "RESTAURACIÓN", "CON LA MORENITA"],
-    "tarde":  ["PROTECCIÓN", "DIVINA", "CON LA MORENITA"],
-    "noite":  ["DESCANSO", "Y SANACIÓN", "CON LA MORENITA"],
+    "manha": ["LA MORENITA", "TU MILAGRO", "EMPIEZA HOY"],
+    "tarde":  ["LA MORENITA", "ABRE TU", "PUERTA AHORA"],
+    "noite":  ["LA MORENITA", "VELA POR TI", "AHORA · EN VIVO"],
 }
 
 # Estado global compartilhado entre threads
@@ -528,15 +550,31 @@ def _gerar_roteiro_suplica(suplicantes: list[dict]) -> str:
     linhas = "\n".join(f"  - {s['nome']}: {s['pedido']}" for s in suplicantes)
     agora = datetime.now(FUSO)
     hora = agora.hour
-    periodo = "de la mañana" if hora < 12 else ("del mediodía" if hora < 14 else
-              "de la tarde" if hora < 19 else "de la noche")
+    if hora < 12:
+        periodo = "de la mañana"
+        saudacao = "Buenos días"
+    elif hora < 14:
+        periodo = "del mediodía"
+        saudacao = "Buenas tardes"
+    elif hora < 19:
+        periodo = "de la tarde"
+        saudacao = "Buenas tardes"
+    else:
+        periodo = "de la noche"
+        saudacao = "Buenas noches"
+
+    pilar_primario, pilares_complementares = _pilar_por_horario(hora, agora.weekday())
 
     prompt = (
         f"Eres Nuestra Señora de Guadalupe, La Morenita, hablando en primera persona.\n"
         f"Es {agora.strftime('%H:%M')} {periodo}. Vas a interceder por estas almas en 2-3 minutos.\n\n"
         f"Intenciones de los fieles:\n{linhas}\n\n"
         f"Instrucciones:\n"
+        f"- ABRE con una salutación natural para este momento: '{saudacao}, hijos míos...' o variación auténtica\n"
+        f"- MENCIONA el momento del día ('esta mañana', 'esta tarde', 'esta noche') de forma natural al menos una vez\n"
         f"- MENCIONA a cada persona por nombre con su intención específica\n"
+        f"- Enfoca especialmente en: {pilar_primario}\n"
+        f"- Integra también elementos de: {pilares_complementares}\n"
         f"- Tono maternal y cálido, 380-450 palabras\n"
         f"- Incluye una bendición breve al final\n"
         f"- Solo texto corrido, sin markdown, sin títulos\n"
@@ -1722,15 +1760,16 @@ def loop_transmissor():
                 proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
                                                  "1080x1920", "2500k", "V")
 
-            ciclo_start     = time.time()
-            ultimo_check_bc = time.time()
+            ciclo_start       = time.time()
+            ultimo_check_bc   = time.time()
+            ultimo_thumb_upd  = ciclo_start  # thumbnail re-aplicada a cada 3h (manhã→tarde→noite)
             # 1ª súplica dispara em ~5min (não esperar 30min na 1ª vez)
             ultimo_suplica  = ciclo_start - (SUPLICA_INTERVAL - 5 * 60)
             try:
                 while not _ev_parar.is_set():
                     elapsed = time.time() - ciclo_start
                     if elapsed >= DURACAO_CICLO_SEG:
-                        log.info(f"Ciclo {ciclo}: 6h completas — encerrando FFmpeg para salvar VOD.")
+                        log.info(f"Ciclo {ciclo}: 12h completas — encerrando FFmpeg para salvar VOD.")
                         break
 
                     # Watchdog FFmpeg H
@@ -1756,6 +1795,12 @@ def loop_transmissor():
                                 buf_v = elapsed + buf_nova_v
                             proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
                                                              "1080x1920", "2500k", "V")
+
+                    # Refresh de thumbnail a cada 3h para acompanhar mudança de período (manhã/tarde/noite)
+                    if bid_h and (time.time() - ultimo_thumb_upd) >= 3 * 3600:
+                        threading.Thread(target=_aplicar_thumbnail, args=(yt, bid_h, "H"),
+                                         name="ThumbRefresh", daemon=True).start()
+                        ultimo_thumb_upd = time.time()
 
                     # Timer de súplica (a cada SUPLICA_INTERVAL = 30min)
                     if not _ev_suplica_gerar.is_set() and (time.time() - ultimo_suplica) >= SUPLICA_INTERVAL:
