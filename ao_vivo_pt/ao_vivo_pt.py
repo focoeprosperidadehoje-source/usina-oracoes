@@ -1038,7 +1038,7 @@ def _montar_bloco_h(audio: Path) -> Path:
         str(saida_tmp),
     ]
     log.info(f"Assembler PT: montando {saida.name} ({dur//60}min)...")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=2700)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=4500)
     concat_file.unlink(missing_ok=True)
     if result.returncode != 0:
         saida_tmp.unlink(missing_ok=True)
