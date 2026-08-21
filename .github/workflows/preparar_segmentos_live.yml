@@ -70,7 +70,7 @@ jobs:
           echo "Total: $(ls segmentos/*.mp4 | wc -l) arquivos"
 
       - name: Salvar segmentos como Artifact (download via GitHub UI)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: live-ES-segmentos-base
           path: segmentos/
