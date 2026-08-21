@@ -1,0 +1,158 @@
+name: 🛠️ Setup inicial VPS — Canal PT (rodar UMA vez)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    name: Configurar VPS para live PT
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH para VPS
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY_VPS_ES }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H 80.241.213.27 >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Criar estrutura de diretórios no VPS
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            mkdir -p /root/ao_vivo_pt/{blocos,suplicas,insumos_h,musicas/manha,musicas/noite,videos_base}
+            echo '✅ Diretórios criados'
+            ls -la /root/ao_vivo_pt/
+          "
+
+      - name: Instalar dependências Python
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            pip3 install -q \
+              google-genai \
+              google-api-python-client \
+              google-auth \
+              google-auth-oauthlib \
+              pytz \
+              edge-tts \
+              python-dotenv
+            apt-get install -y python3-pil --no-install-recommends -qq 2>&1 | tail -2
+            echo '✅ Dependências instaladas'
+          "
+
+      - name: Copiar credenciais Google (service account compartilhada)
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            if [ -f /root/ao_vivo_es/google_credentials_es.json ]; then
+              cp /root/ao_vivo_es/google_credentials_es.json /root/ao_vivo_pt/google_credentials_pt.json
+              echo '✅ Credenciais copiadas do ES'
+            else
+              echo '⚠️ google_credentials_es.json não encontrado — copiar manualmente'
+            fi
+          "
+
+      - name: Extrair client_id e client_secret do token ES (para gerar token PT)
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            if [ -f /root/ao_vivo_es/youtube_token.json ]; then
+              YT_CLIENT_ID=\$(python3 -c \"import json; d=json.load(open('/root/ao_vivo_es/youtube_token.json')); print(d.get('client_id',''))\" 2>/dev/null)
+              YT_CLIENT_SECRET=\$(python3 -c \"import json; d=json.load(open('/root/ao_vivo_es/youtube_token.json')); print(d.get('client_secret',''))\" 2>/dev/null)
+              echo \"YT_CLIENT_ID=\$YT_CLIENT_ID\" >> /root/ao_vivo_pt/.env.tmp
+              echo \"YT_CLIENT_SECRET=\$YT_CLIENT_SECRET\" >> /root/ao_vivo_pt/.env.tmp
+              echo '✅ client_id/secret extraídos do token ES'
+            else
+              echo '⚠️ Token ES não encontrado — YT_CLIENT_ID/SECRET ausentes'
+            fi
+          "
+
+      - name: Criar .env PT no VPS
+        env:
+          STREAM_KEY_H_PT:          ${{ secrets.STREAM_KEY_H_PT }}
+          GEMINI_KEY_LIVE_CONTENT_1_PT: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_1_PT }}
+          GEMINI_KEY_LIVE_CONTENT_2_PT: ${{ secrets.GEMINI_KEY_LIVE_CONTENT_2_PT }}
+          GEMINI_KEY_LIVE_CHAT_1_PT:    ${{ secrets.GEMINI_KEY_LIVE_CHAT_1_PT }}
+          GEMINI_KEY_LIVE_CHAT_2_PT:    ${{ secrets.GEMINI_KEY_LIVE_CHAT_2_PT }}
+          GEMINI_KEY_LIVE_CHAT_3_PT:    ${{ secrets.GEMINI_KEY_LIVE_CHAT_3_PT }}
+        run: |
+          # Cria o .env principal e mescla com o .env.tmp (client_id/secret do ES)
+          cat > /tmp/env_pt << ENVEOF
+          STREAM_KEY_H_PT=${STREAM_KEY_H_PT}
+          INGEST_URL=rtmp://a.rtmp.youtube.com/live2
+          GEMINI_KEY_LIVE_CONTENT_1_PT=${GEMINI_KEY_LIVE_CONTENT_1_PT}
+          GEMINI_KEY_LIVE_CONTENT_2_PT=${GEMINI_KEY_LIVE_CONTENT_2_PT}
+          GEMINI_KEY_LIVE_CHAT_1_PT=${GEMINI_KEY_LIVE_CHAT_1_PT}
+          GEMINI_KEY_LIVE_CHAT_2_PT=${GEMINI_KEY_LIVE_CHAT_2_PT}
+          GEMINI_KEY_LIVE_CHAT_3_PT=${GEMINI_KEY_LIVE_CHAT_3_PT}
+          ENVEOF
+          # Remove indentação
+          sed -i 's/^[[:space:]]*//' /tmp/env_pt
+          scp -i ~/.ssh/vps_key -o StrictHostKeyChecking=no /tmp/env_pt root@80.241.213.27:/root/ao_vivo_pt/.env
+          # Mescla com YT_CLIENT_ID/SECRET extraídos
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            if [ -f /root/ao_vivo_pt/.env.tmp ]; then
+              cat /root/ao_vivo_pt/.env.tmp >> /root/ao_vivo_pt/.env
+              rm /root/ao_vivo_pt/.env.tmp
+            fi
+            echo '✅ .env criado'
+            grep -c '=' /root/ao_vivo_pt/.env && echo 'linhas no .env'
+          "
+
+      - name: Enviar scripts Python PT para VPS
+        run: |
+          scp -i ~/.ssh/vps_key -o StrictHostKeyChecking=no \
+            ao_vivo_pt/ao_vivo_pt.py \
+            ao_vivo_pt/gerar_bloco_live_pt.py \
+            ao_vivo_pt/gerar_token_pt.py \
+            root@80.241.213.27:/root/ao_vivo_pt/
+          echo '✅ Scripts enviados'
+
+      - name: Instalar e habilitar serviço systemd PT
+        run: |
+          scp -i ~/.ssh/vps_key -o StrictHostKeyChecking=no \
+            ao_vivo_pt/ao_vivo_pt.service \
+            root@80.241.213.27:/etc/systemd/system/ao_vivo_pt.service
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            systemctl daemon-reload
+            systemctl enable ao_vivo_pt
+            echo '✅ Serviço ao_vivo_pt habilitado (não iniciado — aguarda token OAuth)'
+            systemctl status ao_vivo_pt --no-pager | head -5
+          "
+
+      - name: Instalar FFmpeg estático
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            if ! command -v ffmpeg &>/dev/null; then
+              wget -q -O /tmp/ffmpeg.tar.xz \
+                'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz'
+              tar -xf /tmp/ffmpeg.tar.xz --strip-components=2 -C /tmp --wildcards '*/bin/ffmpeg'
+              mv /tmp/ffmpeg /usr/local/bin/ffmpeg
+              chmod +x /usr/local/bin/ffmpeg
+              rm /tmp/ffmpeg.tar.xz
+              echo \"✅ FFmpeg instalado: \$(ffmpeg -version | head -1)\"
+            else
+              echo \"✅ FFmpeg já instalado: \$(ffmpeg -version | head -1)\"
+            fi
+          "
+
+      - name: Verificação final do VPS PT
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            echo '=== ESTRUTURA /root/ao_vivo_pt/ ==='
+            ls -la /root/ao_vivo_pt/
+            echo
+            echo '=== SERVIÇO ==='
+            systemctl is-enabled ao_vivo_pt
+            echo
+            echo '=== PRÓXIMO PASSO ==='
+            echo 'Gerar token OAuth PT:'
+            echo '  ssh root@80.241.213.27'
+            echo '  cd /root/ao_vivo_pt && python3 gerar_token_pt.py'
+          "
+
+      - name: Remover chave SSH temporária
+        if: always()
+        run: rm -f ~/.ssh/vps_key

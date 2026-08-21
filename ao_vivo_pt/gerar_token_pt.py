@@ -1,71 +1,72 @@
 #!/usr/bin/env python3
 """
-gerar_token_pt.py — Gera youtube_token.json para o Canal PT.
+gerar_token_pt.py — Gera youtube_token.json para o Canal PT (live stream).
+Executar uma única vez no VPS após o setup inicial.
 
-Execute no VPS via VNC/terminal:
-    pip3 install google-auth-oauthlib
-    python3 /root/gerar_token_pt.py
+Uso:
+  cd /root/ao_vivo_pt
+  python3 gerar_token_pt.py
 
-O script mostra uma URL. Abra no navegador, autorize com a conta
-do Canal PT (canalinteligenciadivina@gmail.com), copie o código
-e cole aqui. O token será salvo em /root/ao_vivo_pt/youtube_token.json
+O script mostra uma URL — abra no browser, autorize com
+canalinteligenciadivina@gmail.com escolhendo o Canal PT,
+cole o código de volta aqui. O token é salvo automaticamente.
 """
 
 import json
+import os
+import sys
 from pathlib import Path
 
-TOKEN_ES   = Path("/root/ao_vivo_es/youtube_token.json")
-TOKEN_PT   = Path("/root/ao_vivo_pt/youtube_token.json")
-TOKEN_PT.parent.mkdir(parents=True, exist_ok=True)
+from dotenv import load_dotenv
 
-# Lê client_id e client_secret do token ES existente (mesma conta Google)
-with open(TOKEN_ES) as f:
-    es = json.load(f)
+load_dotenv("/root/ao_vivo_pt/.env")
+
+CLIENT_ID     = os.environ.get("YT_CLIENT_ID", "")
+CLIENT_SECRET = os.environ.get("YT_CLIENT_SECRET", "")
+SAVE_PATH     = Path("/root/ao_vivo_pt/youtube_token.json")
+SCOPES        = ["https://www.googleapis.com/auth/youtube"]
+
+if not CLIENT_ID or not CLIENT_SECRET:
+    print("ERRO: YT_CLIENT_ID ou YT_CLIENT_SECRET ausentes no .env")
+    print("O setup_vps_pt_inicial.yml deve ter preenchido estas variáveis.")
+    sys.exit(1)
+
+try:
+    from google_auth_oauthlib.flow import InstalledAppFlow
+except ImportError:
+    print("Instalando google-auth-oauthlib...")
+    import subprocess
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "google-auth-oauthlib"], check=True)
+    from google_auth_oauthlib.flow import InstalledAppFlow
 
 client_config = {
     "installed": {
-        "client_id":     es["client_id"],
-        "client_secret": es["client_secret"],
-        "auth_uri":      "https://accounts.google.com/o/oauth2/auth",
-        "token_uri":     "https://oauth2.googleapis.com/token",
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
         "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
     }
 }
 
-SCOPES = [
-    "https://www.googleapis.com/auth/youtube",
-    "https://www.googleapis.com/auth/youtube.force-ssl",
-    "https://www.googleapis.com/auth/youtube.upload",
-]
-
-from google_auth_oauthlib.flow import InstalledAppFlow
+print("=" * 60)
+print("Gerador de Token YouTube — Canal PT")
+print("=" * 60)
+print()
+print("1. Copie a URL abaixo e abra no seu navegador")
+print("2. Faça login com canalinteligenciadivina@gmail.com")
+print("3. Escolha o Canal PT quando perguntado")
+print("4. Autorize e copie o código exibido")
+print("5. Cole o código aqui e pressione Enter")
+print()
 
 flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-
-print("\n" + "="*60)
-print("GERAÇÃO DO TOKEN PT — Canal Nossa Senhora Aparecida")
-print("="*60)
-print("\n1. Copie a URL abaixo e abra no navegador")
-print("2. Faça login com canalinteligenciadivina@gmail.com")
-print("   ** Escolha o Canal PT (Português) quando aparecer **")
-print("3. Autorize o acesso e copie o código mostrado")
-print("4. Cole o código aqui e pressione Enter\n")
-
 creds = flow.run_console()
 
-token_data = {
-    "token":         creds.token,
-    "refresh_token": creds.refresh_token,
-    "token_uri":     creds.token_uri,
-    "client_id":     creds.client_id,
-    "client_secret": creds.client_secret,
-    "scopes":        list(creds.scopes),
-}
-
-with open(TOKEN_PT, "w") as f:
-    json.dump(token_data, f, indent=2)
-
-print(f"\n✅  Token PT salvo em: {TOKEN_PT}")
-print("\nPróximo passo: adicionar como secret YOUTUBE_TOKEN_PT no GitHub.")
-print("Execute: cat /root/ao_vivo_pt/youtube_token.json | base64 -w0")
-print("Cole o resultado como secret YOUTUBE_TOKEN_PT no repo usina-oracoes.")
+SAVE_PATH.write_text(creds.to_json())
+print()
+print(f"✅ Token salvo em {SAVE_PATH}")
+print()
+print("Próximo passo — iniciar a live PT:")
+print("  systemctl start ao_vivo_pt")
+print("  systemctl status ao_vivo_pt")
