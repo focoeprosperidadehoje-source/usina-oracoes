@@ -53,61 +53,111 @@ UPLOADS_PLAYLIST_ID = canal_response['items'][0]['contentDetails']['relatedPlayl
 print("💰 INICIANDO O VENDEDOR")
 texto_fixo = next((str(c.get('Texto Fixo', c.get('Texto_Fixo', ''))) for c in configs if str(c.get('Idioma', '')).upper() == 'ES'), "")
 
+LINK_LIVE = f"https://www.youtube.com/channel/{MEU_CANAL_ID}/live"
+
 if texto_fixo:
     limite_24h = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
-    playlist_req = youtube.playlistItems().list(part='snippet', playlistId=UPLOADS_PLAYLIST_ID, maxResults=15).execute()
-    video_ids = [item['snippet']['resourceId']['videoId'] for item in playlist_req.get('items',[])]
-    
+    # Paginar uploads para cobrir até 50 vídeos recentes
+    video_ids = []
+    page_token_up = None
+    for _ in range(4):
+        resp_up = youtube.playlistItems().list(
+            part='snippet', playlistId=UPLOADS_PLAYLIST_ID,
+            maxResults=50, pageToken=page_token_up
+        ).execute()
+        video_ids += [item['snippet']['resourceId']['videoId'] for item in resp_up.get('items', [])]
+        page_token_up = resp_up.get('nextPageToken')
+        if not page_token_up:
+            break
+
     if video_ids:
-        videos_req = youtube.videos().list(part='snippet', id=','.join(video_ids)).execute()
+        videos_req = youtube.videos().list(part='snippet', id=','.join(video_ids[:50])).execute()
         for video in videos_req.get('items',[]):
             v_id, v_titulo = video['id'], video['snippet']['title']
             pub_time = datetime.datetime.strptime(video['snippet']['publishedAt'], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
-            
+
             if pub_time >= limite_24h:
                 try:
                     comentarios = youtube.commentThreads().list(part='snippet', videoId=v_id, maxResults=100).execute()
                     if not any(t['snippet']['topLevelComment']['snippet'].get('authorChannelId', {}).get('value') == MEU_CANAL_ID for t in comentarios.get('items',[])):
-                        
                         if "#shorts" in v_titulo.lower():
-                            comentario_final = "🙏 ¡Que esta oración bendiga tu día! Visita nuestro canal para las oraciones completas.\n\n🔴 MUY PRONTO — EN VIVO 24 HORAS: Tus pedidos de intercesión y los nombres de tus seres queridos serán mencionados en oración de forma continua. ¡Activa la 🔔 campanita para ser el primero en unirte a este momento de gracia!"
+                            comentario_final = (
+                                "🙏 ¡Que esta oración bendiga tu día!\n\n"
+                                f"🔴 ESTAMOS EN VIVO AHORA — 24 horas sin parar: tus pedidos y los nombres de "
+                                f"tus seres queridos son mencionados en oración de forma continua.\n"
+                                f"Únete ahora: {LINK_LIVE} 🔔"
+                            )
                         else:
                             link_playlist = "https://www.youtube.com/playlist?list=PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w"
                             if "mañana" in v_titulo.lower(): link_playlist = "https://www.youtube.com/playlist?list=PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA"
                             elif "noche" in v_titulo.lower(): link_playlist = "https://www.youtube.com/playlist?list=PLpWSsa4Rjy3afok57i5cNbl7MBCMrT9iD"
-                            comentario_final = f"{texto_fixo}\n\nSigue orando con nosotros aquí: {link_playlist}\n\n🔴 MUY PRONTO — EN VIVO 24/7: Sus súplicas y los nombres de sus seres queridos serán elevados en oración de forma ininterrumpida. ¡Activen la 🔔 para no perderse el lanzamiento!"
-                            
+                            comentario_final = (
+                                f"{texto_fixo}\n\nSigue orando con nosotros aquí: {link_playlist}\n\n"
+                                f"🔴 EN VIVO AHORA — 24/7: tus súplicas y los nombres de tus seres queridos "
+                                f"son elevados en oración ininterrumpida. Únete: {LINK_LIVE}"
+                            )
                         youtube.commentThreads().insert(part="snippet", body={"snippet": {"videoId": v_id, "topLevelComment": {"snippet": {"textOriginal": comentario_final}}}}).execute()
                         print(f"   ✅ Comentário postado no vídeo: {v_titulo[:30]}")
                         time.sleep(2)
-                except: pass
+                except Exception as e:
+                    print(f"   ⚠️ Erro ao comentar em {v_id}: {e}")
 
 print("\n🕊️ INICIANDO O PASTOR DIGITAL")
 try:
-    threads = youtube.commentThreads().list(part="snippet,replies", allThreadsRelatedToChannelId=MEU_CANAL_ID, maxResults=15).execute()
-    for thread in threads.get('items',[]):
-        top = thread['snippet']['topLevelComment']['snippet']
-        autor_id = top.get('authorChannelId', {}).get('value')
-        if autor_id == MEU_CANAL_ID: continue
-        
-        ja_respondi = any(r['snippet'].get('authorChannelId', {}).get('value') == MEU_CANAL_ID for r in thread.get('replies', {}).get('comments',[]))
-        if not ja_respondi:
-            nome, texto = top.get('authorDisplayName', 'Hermano(a)'), top.get('textOriginal', '')
-            comment_id = top.get('id')
-            
-            prompt = f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. Escribe una respuesta CORTA (máx 3 líneas). Si el comentario es negativo o critica imágenes, ACTIVA EL MODO PACIFICADOR: responde con extrema educación, diciendo que respetamos su visión, pero invítalo a unirse en el amor a Dios. Si es positivo, agradece y bendice. Si el fiel menciona nombres de personas enfermas, situaciones de dolor, pedidos de oración o intercesión por alguien, añade organicamente UNA frase mencionando que muy pronto estaremos EN VIVO 24 horas del día y que sus pedidos y los nombres de sus seres queridos serán mencionados en oración de forma continua, invitándolo a activar la campanita para no perderse el lanzamiento. Tono cálido y esperanzador. SIN comillas."
-            
-            try:
-                resposta = _gerar_comunidade(prompt)
-                youtube.comments().insert(part="snippet", body={"snippet": {"parentId": thread['id'], "textOriginal": resposta}}).execute()
-                print(f"   ✅ Respondido a {nome}")
-                
+    respondidos = 0
+    page_token_t = None
+    # Paginar até 300 threads por execução (3 páginas × 100)
+    for _pagina in range(3):
+        threads_resp = youtube.commentThreads().list(
+            part="snippet,replies",
+            allThreadsRelatedToChannelId=MEU_CANAL_ID,
+            maxResults=100,
+            pageToken=page_token_t
+        ).execute()
+        for thread in threads_resp.get('items', []):
+            top = thread['snippet']['topLevelComment']['snippet']
+            autor_id = top.get('authorChannelId', {}).get('value')
+            if autor_id == MEU_CANAL_ID:
+                continue
+            ja_respondi = any(
+                r['snippet'].get('authorChannelId', {}).get('value') == MEU_CANAL_ID
+                for r in thread.get('replies', {}).get('comments', [])
+            )
+            if not ja_respondi:
+                nome  = top.get('authorDisplayName', 'Hermano(a)')
+                texto = top.get('textOriginal', '')
+                comment_id = top.get('id')
+                prompt = (
+                    f"Actúa como guía espiritual católico. Un fiel llamado '{nome}' comentó: '{texto}'. "
+                    f"Escribe una respuesta CORTA (máx 3 líneas). "
+                    f"Si el comentario es negativo o critica imágenes, ACTIVA EL MODO PACIFICADOR: "
+                    f"responde con extrema educación, respetando su visión, pero invítalo al amor de Dios. "
+                    f"Si es positivo, agradece y bendice. "
+                    f"Si el fiel menciona personas enfermas, situaciones de dolor o pide intercesión, "
+                    f"añade orgánicamente UNA frase invitándolo a nuestra transmisión 24/7 donde sus pedidos "
+                    f"son mencionados en oración de forma continua: {LINK_LIVE} "
+                    f"Tono cálido y esperanzador. SIN comillas."
+                )
                 try:
-                    youtube.comments().rate(id=comment_id, rating='like').execute()
-                    print("   ❤️ Like dado no comentário!")
-                except Exception as e: print(f"   ⚠️ Não foi possível dar like: {e}")
-                
-                time.sleep(3)
-            except: pass
-except: pass
+                    resposta = _gerar_comunidade(prompt)
+                    youtube.comments().insert(
+                        part="snippet",
+                        body={"snippet": {"parentId": thread['id'], "textOriginal": resposta}}
+                    ).execute()
+                    print(f"   ✅ Respondido a {nome}")
+                    try:
+                        youtube.comments().rate(id=comment_id, rating='like').execute()
+                        print("   ❤️ Like dado!")
+                    except Exception as e:
+                        print(f"   ⚠️ Like falhou: {e}")
+                    respondidos += 1
+                    time.sleep(3)
+                except Exception as e:
+                    print(f"   ⚠️ Erro ao responder {nome}: {e}")
+        page_token_t = threads_resp.get('nextPageToken')
+        if not page_token_t:
+            break
+    print(f"   Total respondido nesta execução: {respondidos}")
+except Exception as e:
+    print(f"⚠️ PASTOR DIGITAL erro geral: {e}")
 print("🚀 ESTÁGIO 6 CONCLUÍDO!")

@@ -2,7 +2,9 @@ name: 3. Comunidade e Vendas (ES)
 
 on:
   schedule:
+    - cron: '0 8 * * *'  # 05:00 BRT
     - cron: '0 14 * * *' # 11:00 BRT
+    - cron: '0 20 * * *' # 17:00 BRT
     - cron: '0 2 * * *'  # 23:00 BRT
   workflow_dispatch: 
 
