@@ -2,7 +2,7 @@ name: 🎙️ Gerador de Áudio Live PT
 
 on:
   schedule:
-    - cron: '0 7,13,19 * * *'   # 3×/dia: 7h, 13h, 19h UTC (4h, 10h, 16h BRT)
+    - cron: '0 5,9,13,17,21,1 * * *'  # 6×/dia: a cada 4h UTC (2h,6h,10h,14h,18h,22h BRT)
   workflow_dispatch:              # disparo manual
 
 jobs:

@@ -36,7 +36,7 @@ from googleapiclient.discovery import build
 
 FUSO       = pytz.timezone("America/Sao_Paulo")
 VOZ        = "pt-BR-FranciscaNeural"
-VOZ_RATE   = "-18%"
+VOZ_RATE   = "-30%"
 VOZ_PITCH  = "-8Hz"
 CANAL_ID   = "UClATmmCFTo_UDHgfXPjwyqw"
 DIR_BLOCOS = Path("blocos_pt")
@@ -321,6 +321,7 @@ CTA 3 (~minuto 17): "Fique, o que vem agora é para você..."
 REGRAS ABSOLUTAS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - NUNCA markdown, asteriscos, hifens, numerações nem títulos — somente texto corrido
+- NUNCA reticências (...) nem travessão (—) — causam pausas indevidas na narração
 - NUNCA começar frase com a palavra "Oração"
 - NUNCA "Escreva Amém nos comentários"
 - NUNCA mencionar outros canais ou marcas
@@ -337,7 +338,13 @@ REGRAS ABSOLUTAS:
     texto   = re.sub(r'\*+', '', texto)
     texto   = re.sub(r'#{1,6}\s+', '', texto)
     texto   = re.sub(r'^\s*[-•]\s+', '', texto, flags=re.MULTILINE)
+    # Remove reticências e travessões — causam pausas indevidas no TTS
+    texto   = re.sub(r'\.{2,}', '', texto)
+    texto   = re.sub(r'\s*[—–]\s*', ', ', texto)
+    # Une linhas quebradas no meio de frase (newline simples → espaço)
+    texto   = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto)
     texto   = re.sub(r'\n{3,}', '\n\n', texto)
+    texto   = re.sub(r'  +', ' ', texto)
     return texto.strip()
 
 
