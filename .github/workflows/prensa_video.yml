@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        horario: ['06:00', '18:00'] # Apenas a nova grade de longos
+        horario: ['18:00'] # Apenas Nossa Senhora noite
       fail-fast: false
 
     steps:

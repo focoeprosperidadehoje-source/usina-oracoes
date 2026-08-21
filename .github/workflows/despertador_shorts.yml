@@ -2,6 +2,7 @@ name: 1. Usina Shorts (ES)
 
 on:
   schedule:
+    - cron: '23 6 * * *'  # 03:23 BRT — gera Short 06:00 MEX antes da prensa
     - cron: '23 11 * * *' # 08:23 BRT
     - cron: '23 13 * * *' # 10:23 BRT
   workflow_dispatch:

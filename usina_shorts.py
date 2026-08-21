@@ -44,6 +44,7 @@ PILARES = {
 }
 
 GRADE_SHORTS = [
+    {"horario": "06:00", "personagem": "Maria", "idioma": "ES", "foco": "Mañana: Bajo el manto de La Morenita, empieza tu día con un milagro.", "ref": "18:00"},
     {"horario": "14:00", "personagem": "Maria", "idioma": "ES", "foco": "Mediodía: Causas imposibles, sanación física y milagros.", "ref": "18:00"}
 ]
 
