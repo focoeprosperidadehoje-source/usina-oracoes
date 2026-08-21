@@ -531,7 +531,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, imgs_dir: Path):
     imgs = list(imgs_dir.glob("*.jpg")) + list(imgs_dir.glob("*.png"))
     if not imgs:
         cmd = ["ffmpeg", "-y",
-               "-f", "lavfi", "-i", "color=c=0x1a0a2e:s=1920x1080:r=30",
+               "-f", "lavfi", "-i", "color=c=0x1a0a2e:s=1280x720:r=30",
                "-i", str(audio), "-t", str(dur),
                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
                "-g", "60", "-keyint_min", "30",
@@ -563,7 +563,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, imgs_dir: Path):
         inputs  = ["-i", str(audio)]
         afiltro = "[1:a]volume=1.0[aout]"
 
-    vfiltro = "[0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=30[vout]"
+    vfiltro = "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1,fps=30[vout]"
     cmd = [
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0", "-i", str(concat_file),
