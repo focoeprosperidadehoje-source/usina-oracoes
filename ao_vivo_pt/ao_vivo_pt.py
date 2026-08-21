@@ -880,7 +880,6 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, nome: str) -> subprocess.Pop
 
     cmd = [
         "ffmpeg",
-        "-re",
         "-fflags", "+genpts",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
