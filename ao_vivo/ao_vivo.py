@@ -4,7 +4,7 @@ ao_vivo.py — Live 24/7 Canal ES — Arquitetura Pivot (2026-07-03)
 Voz: Dalia Neural (es-MX-DaliaNeural)
 
 Threads:
-  TRANSMISSOR — ciclos 6h, dual RTMP, rotação de blocos base
+  TRANSMISSOR — ciclos 12h, dual RTMP, rotação de blocos base
   SUPLICAS    — segmento 2-3min de intercessão personalizada a cada bloco
   MONITOR     — saúde do disco e alertas de estoque mínimo
 
@@ -114,7 +114,7 @@ ROLLING_ANTECIPACAO = 1500           # appendar quando buffer < 25min (margem se
 SUPLICA_INTERVAL    = 30 * 60        # gerar súplica a cada 30min
 SUPLICA_MAX_READY   = 8              # máx súplicas prontas no disco (cap de CPU)
 ASSEMBLER_BLOCOS_MAX = 8             # máx blocos H prontos — acima disso assembler dorme (não disputar CPU)
-DURACAO_CICLO_SEG    = 6 * 3600      # 6h por broadcast
+DURACAO_CICLO_SEG    = 12 * 3600     # 12h por broadcast (2×/dia = 2 notificações + 1 slot vídeo longo)
 BLOCOS_MINIMOS       = 1             # mínimo de blocos para iniciar transmissão
 
 # TTS e Gemini

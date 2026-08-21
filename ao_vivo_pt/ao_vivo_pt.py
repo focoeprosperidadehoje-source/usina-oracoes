@@ -4,7 +4,7 @@ ao_vivo_pt.py — Live 24/7 Canal PT — Arquitetura Pivot
 Voz: pt-BR-FranciscaNeural (Nossa Senhora Aparecida)
 
 Threads:
-  TRANSMISSOR — ciclos 6h, RTMP horizontal, rotação de blocos base
+  TRANSMISSOR — ciclos 12h, RTMP horizontal, rotação de blocos base
   SUPLICAS    — segmento 2-3min de intercessão personalizada a cada bloco
   MONITOR     — saúde do disco e alertas de estoque mínimo
   ASSEMBLER   — combina audio_*.mp3 (GitHub Actions) + videos_base/
@@ -105,7 +105,7 @@ ROLLING_ANTECIPACAO  = 1500
 SUPLICA_INTERVAL     = 30 * 60
 SUPLICA_MAX_READY    = 8              # máx súplicas prontas (cap de CPU)
 ASSEMBLER_BLOCOS_MAX = 8             # máx blocos H prontos — assembler dorme acima disso
-DURACAO_CICLO_SEG    = 6 * 3600
+DURACAO_CICLO_SEG    = 12 * 3600     # 12h por broadcast (2×/dia = 2 notificações + 1 slot vídeo longo)
 BLOCOS_MINIMOS       = 1
 
 # TTS e Gemini
