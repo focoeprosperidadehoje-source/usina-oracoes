@@ -61,7 +61,12 @@ print("5. Cole o código aqui e pressione Enter")
 print()
 
 flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-creds = flow.run_console()
+flow.redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
+print(f"URL para autorizar:\n{auth_url}\n")
+code = input("Cole o código aqui: ").strip()
+flow.fetch_token(code=code)
+creds = flow.credentials
 
 SAVE_PATH.write_text(creds.to_json())
 print()
