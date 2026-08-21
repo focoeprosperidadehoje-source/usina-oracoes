@@ -36,8 +36,8 @@ VIDEO_PREFIX    = os.environ.get("VIDEO_PREFIX") or "guadalupe"
 NUM_VIDEOS      = int(os.environ.get("NUM_VIDEOS") or "8")
 IMG_POR_VIDEO   = 40        # imagens por vídeo → 40 × 15s = 600s = 10min
 SEG_POR_IMAGEM  = 15        # duração de cada imagem em segundos
-TARGET_W        = 1920
-TARGET_H        = 1080
+TARGET_W        = 1280      # 720p — blocos da live já são 720p
+TARGET_H        = 720
 DIR_SAIDA       = Path("videos_base")
 
 
@@ -77,7 +77,7 @@ def _gerar_overlay_particulas(saida: Path, duracao_s: int = 20, fps: int = 30) -
         "-f", "rawvideo", "-vcodec", "rawvideo",
         "-s", f"{TARGET_W}x{TARGET_H}", "-pix_fmt", "rgb24", "-r", str(fps),
         "-i", "pipe:0",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "25",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "25",
         "-pix_fmt", "yuv420p", "-an",
         str(tmp),
     ]
@@ -207,65 +207,100 @@ def blur_fill(src: Path, dest: Path, w: int = TARGET_W, h: int = TARGET_H):
     bg.save(str(dest), "JPEG", quality=88)
 
 
-# ─── Criação do vídeo slideshow ─────────────────────────────────────────
+# ─── Criação do vídeo slideshow com Ken Burns ───────────────────────────
 
 def criar_slideshow(imagens: list[Path], saida: Path, overlay: Path | None = None):
-    """Encoda vídeo mudo 1920x1080. Se overlay fornecido, aplica partículas douradas (blend=screen)."""
+    """
+    Encoda vídeo 1280x720 com Ken Burns via rawvideo pipe (Python+Pillow).
+    Cada imagem recebe zoom-in ou zoom-out suave (1.0 ↔ 1.04).
+    Se overlay fornecido, aplica partículas douradas em segundo passo (blend=screen).
+    """
     if saida.exists():
         print(f"  {saida.name} já existe — pulando.")
         return
 
-    concat = saida.with_suffix(".concat.txt")
-    linhas = ["ffconcat version 1.0"]
-    for img in imagens:
-        linhas.append(f"file '{img.resolve()}'")
-        linhas.append(f"duration {SEG_POR_IMAGEM}")
-    # Última entrada sem duration fecha o concat corretamente
-    linhas.append(f"file '{imagens[-1].resolve()}'")
-    concat.write_text("\n".join(linhas))
+    fps = 30
+    frames_por_img = SEG_POR_IMAGEM * fps  # 15s × 30fps = 450 frames por imagem
+    total_imgs = len(imagens)
 
-    tmp = saida.with_suffix(".tmp.mp4")
+    tmp_base  = saida.with_suffix(".base.mp4")
+    tmp_final = saida.with_suffix(".tmp.mp4")
 
+    # ── Passo 1: Ken Burns via rawvideo pipe ──────────────────────────────
+    cmd_pipe = [
+        "ffmpeg", "-y",
+        "-f", "rawvideo", "-vcodec", "rawvideo",
+        "-s", f"{TARGET_W}x{TARGET_H}", "-pix_fmt", "rgb24", "-r", str(fps),
+        "-i", "pipe:0",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-g", "60", "-keyint_min", "30",
+        "-pix_fmt", "yuv420p", "-an",
+        str(tmp_base),
+    ]
+    print(f"  Ken Burns: {total_imgs} imgs × {SEG_POR_IMAGEM}s → {TARGET_W}x{TARGET_H}...", flush=True)
+    proc = subprocess.Popen(cmd_pipe, stdin=subprocess.PIPE,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        for idx, img_path in enumerate(imagens):
+            img = Image.open(img_path).convert("RGB")
+            iw, ih = img.size
+            direction = random.choice(["in", "out"])
+            for f in range(frames_por_img):
+                t = f / max(frames_por_img - 1, 1)
+                # zoom: 1.0 → 1.04 (in) ou 1.04 → 1.0 (out) — 4% é sutil mas visível
+                zoom = (1.0 + 0.04 * t) if direction == "in" else (1.04 - 0.04 * t)
+                crop_w = round(iw / zoom)
+                crop_h = round(ih / zoom)
+                x = (iw - crop_w) // 2
+                y = (ih - crop_h) // 2
+                frame = img.crop((x, y, x + crop_w, y + crop_h)).resize(
+                    (TARGET_W, TARGET_H), Image.BILINEAR
+                )
+                proc.stdin.write(frame.tobytes())
+            if (idx + 1) % 10 == 0:
+                print(f"    {idx + 1}/{total_imgs} imagens processadas", flush=True)
+        proc.stdin.close()
+        proc.wait(timeout=600)
+        if proc.returncode != 0:
+            raise RuntimeError("FFmpeg Ken Burns falhou")
+    except Exception:
+        try: proc.stdin.close()
+        except Exception: pass
+        proc.kill()
+        tmp_base.unlink(missing_ok=True)
+        raise
+
+    # ── Passo 2: blend de partículas (segundo passo, rápido) ─────────────
     if overlay and overlay.exists():
         vf = (
-            f"[0:v]scale={TARGET_W}:{TARGET_H},setsar=1,fps=30[base];"
-            f"[1:v]scale={TARGET_W}:{TARGET_H},fps=30[p];"
-            "[base][p]blend=all_mode=screen:all_opacity=0.30[v]"
+            f"[0:v]scale={TARGET_W}:{TARGET_H},fps={fps}[base];"
+            f"[1:v]scale={TARGET_W}:{TARGET_H},fps={fps}[p];"
+            "[base][p]blend=all_mode=screen:all_opacity=0.25[v]"
         )
-        cmd = [
+        cmd_blend = [
             "ffmpeg", "-y",
-            "-f", "concat", "-safe", "0", "-i", str(concat),
+            "-i", str(tmp_base),
             "-stream_loop", "-1", "-i", str(overlay),
             "-filter_complex", vf,
             "-map", "[v]",
-            "-c:v", "libx264", "-preset", "faster", "-crf", "22",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             "-g", "60", "-keyint_min", "30",
             "-pix_fmt", "yuv420p", "-an",
-            str(tmp),
+            "-shortest",
+            str(tmp_final),
         ]
-        label = f"{len(imagens)} imgs × {SEG_POR_IMAGEM}s + partículas"
+        print("  Blend partículas...", flush=True)
+        result = subprocess.run(cmd_blend, capture_output=True, text=True, timeout=300)
+        if result.returncode != 0:
+            print(f"  [WARN] Blend falhou — usando base sem partículas: {result.stderr[-200:]}")
+            tmp_final.unlink(missing_ok=True)
+            tmp_base.rename(saida)
+        else:
+            tmp_base.unlink(missing_ok=True)
+            tmp_final.rename(saida)
     else:
-        cmd = [
-            "ffmpeg", "-y",
-            "-f", "concat", "-safe", "0", "-i", str(concat),
-            "-vf", f"scale={TARGET_W}:{TARGET_H},setsar=1,fps=30",
-            "-c:v", "libx264", "-preset", "faster", "-crf", "22",
-            "-g", "60", "-keyint_min", "30",
-            "-pix_fmt", "yuv420p", "-an",
-            str(tmp),
-        ]
-        label = f"{len(imagens)} imgs × {SEG_POR_IMAGEM}s"
+        tmp_base.rename(saida)
 
-    print(f"  FFmpeg: {saida.name} ({label})...", flush=True)
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-    concat.unlink(missing_ok=True)
-
-    if result.returncode != 0:
-        tmp.unlink(missing_ok=True)
-        print(f"  [ERRO] FFmpeg:\n{result.stderr[-400:]}")
-        raise RuntimeError(f"FFmpeg falhou para {saida.name}")
-
-    tmp.rename(saida)
     mb = saida.stat().st_size // (1024 * 1024)
     print(f"  ✅ {saida.name} pronto ({mb} MB)")
 
@@ -281,7 +316,7 @@ def main():
     DIR_SAIDA.mkdir(parents=True, exist_ok=True)
 
     # Gerar overlay de partículas uma única vez — reutilizado em todos os vídeos
-    overlay_path = DIR_SAIDA / "_particulas_loop.mp4"
+    overlay_path = DIR_SAIDA / f"_particulas_loop_{TARGET_W}x{TARGET_H}.mp4"
     overlay = _gerar_overlay_particulas(overlay_path)
 
     drive = get_drive()
