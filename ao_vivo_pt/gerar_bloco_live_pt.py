@@ -294,11 +294,16 @@ Súplica comum deste grupo: "{suplica}"
 Feche a abertura com: "Vim interceder por vocês neste momento..."
 
 [CORPO PRINCIPAL — ~16 minutos]
-- Voz calorosa e maternal — autoridade espiritual suave
+ALTERNÂNCIA OBRIGATÓRIA — o bloco deve oscilar entre dois modos:
+  Modo A (NARRAÇÃO): Aparecida fala, acolhe, revela a graça — voz calorosa e maternal
+  Modo B (ORAÇÃO GUIADA): Aparecida conduz o ouvinte a orar em voz alta junto com ela
+  Ex: "Repita comigo com fé: Senhor, eu creio... Senhor, eu confio..."
+  Ex: "Coloque a mão no coração e diga: Mãe do Céu, recebo esta graça agora..."
+  Cada transição entre modos deve ser suave e natural — mínimo 3 alternâncias por bloco.
+
 - Entrelaça o pilar "{pilar}" com o tema de intercessão "{label}"
-- Ave Maria completa com pausa depois de Jesus:
-  "...e bendito é o fruto do vosso ventre Jesus... Santa Maria, Mãe de Deus..."
-- Bloco de intercessão pela saúde (obrigatório): "Coloco minhas mãos sobre todo aquele que sofre..."
+- Ave Maria completa GUIADA (ouvinte ora junto): "Repita comigo: Ave Maria, cheia de graça..."
+- Bloco de intercessão pela saúde (obrigatório, guiado): "Ponha sua mão sobre o lugar que dói e diga comigo..."
 - Ganchos de retenção orgânicos a cada ~300 palavras (o fiel não percebe a técnica):
   • Antecipação: "O que vem agora nesta oração..."
   • Revelação: "Esta graça tem um nome..."
