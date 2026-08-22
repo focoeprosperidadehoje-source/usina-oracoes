@@ -109,7 +109,7 @@ DURACAO_BLOCO_SEG    = 20 * 60       # 20min — duração real dos blocos (áud
 DURACAO_SUPLICA_SEG  = 160           # ~2.7min — estimativa de súplica
 SUPLICA_GERAR_OFFSET = 22 * 60       # iniciar geração da súplica em T+22min no bloco
 TRANSICAO_ANTECIP    = 90            # append próximo conteúdo 90s antes do fim do bloco
-ROLLING_INICIAIS    = 3              # blocos na playlist inicial (rolling)
+ROLLING_INICIAIS    = 50             # blocos na playlist inicial (rolling)
 ROLLING_ANTECIPACAO = 1500           # appendar quando buffer < 25min (margem segura)
 SUPLICA_INTERVAL    = 30 * 60        # gerar súplica a cada 30min
 SUPLICA_MAX_READY   = 8              # máx súplicas prontas no disco (cap de CPU)
@@ -1288,6 +1288,7 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
 
     cmd = [
         "ffmpeg",
+        "-re",
         "-fflags", "+genpts",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,

@@ -100,7 +100,7 @@ DRIVE_MUSICAS_N_ID = os.environ.get("DRIVE_MUSICAS_N_ID_PT", "")
 DURACAO_BLOCO_SEG    = 20 * 60
 DURACAO_SUPLICA_SEG  = 160
 SUPLICA_GERAR_OFFSET = 22 * 60
-ROLLING_INICIAIS     = 3
+ROLLING_INICIAIS     = 50
 ROLLING_ANTECIPACAO  = 1500
 SUPLICA_INTERVAL     = 30 * 60
 SUPLICA_MAX_READY    = 8              # máx súplicas prontas (cap de CPU)
@@ -110,7 +110,7 @@ BLOCOS_MINIMOS       = 1
 
 # TTS e Gemini
 VOZ          = "pt-BR-FranciscaNeural"
-VOZ_RATE     = "-18%"
+VOZ_RATE     = "-30%"
 VOZ_PITCH    = "-8Hz"
 MODELOS_LIVE = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
