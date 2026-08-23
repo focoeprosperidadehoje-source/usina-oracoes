@@ -1293,7 +1293,7 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
         "-fflags", "+genpts",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
-        "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
+        "-c:v", "libx264", "-preset", "ultrafast", "-threads", "1",
         "-b:v", bitrate, "-maxrate", f"{bkbps + 500}k", "-bufsize", f"{bkbps * 2}k",
         "-g", "60", "-keyint_min", "30",
         "-c:a", "copy",
@@ -1753,7 +1753,7 @@ def loop_transmissor():
             playlist_h, rot_idx_h, buf_h = _construir_playlist_rolling(
                 blocos, rot_idx_h, ROLLING_INICIAIS, "h")
             proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
-                                             "1920x1080", "3000k", "H")
+                                             "1280x720", "2000k", "H")
             playlist_v = None
             buf_v      = 0.0
             if sk_v_ativo:
@@ -1784,7 +1784,7 @@ def loop_transmissor():
                                 blocos_atuais, rot_idx_h, ROLLING_INICIAIS, "h")
                             buf_h = elapsed + buf_nova
                         proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
-                                                         "1920x1080", "3000k", "H")
+                                                         "1280x720", "2000k", "H")
 
                     # Watchdog FFmpeg V
                     if proc_v and proc_v.poll() is not None:
