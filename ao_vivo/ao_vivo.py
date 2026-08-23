@@ -1286,13 +1286,17 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, ing: str,
     except ValueError:
         rel_playlist = str(playlist)
 
+    bkbps = int(bitrate.replace("k", ""))
     cmd = [
         "ffmpeg",
         "-re",
         "-fflags", "+genpts",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
-        "-c", "copy",
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-b:v", bitrate, "-maxrate", f"{bkbps + 500}k", "-bufsize", f"{bkbps * 2}k",
+        "-g", "60", "-keyint_min", "30",
+        "-c:a", "copy",
         "-f", "flv", f"{ing}/{sk}",
     ]
     log_ffmpeg = BASE_DIR / f"ffmpeg_{nome.lower()}.log"
