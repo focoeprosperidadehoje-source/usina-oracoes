@@ -23,6 +23,8 @@ import subprocess
 import asyncio
 import re
 import tempfile
+import urllib.request
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from io import BytesIO
@@ -759,6 +761,7 @@ def _publicar_apos_golive(yt, bid: str, espera_seg: int = 60, timeout_seg: int =
         ).execute()
         log.info(f"Broadcast {bid} agora PÚBLICO")
         _aplicar_thumbnail(yt, bid)
+        _ativar_transmissao_dupla(yt, bid)
     except Exception as e:
         log.error(f"publicar: falha ao tornar {bid} público: {e}")
 
@@ -866,6 +869,43 @@ def _aplicar_thumbnail(yt, bid: str):
         os.remove(tmp)
     except Exception as e:
         log.warning(f"thumbnail PT: {e}")
+
+
+def _ativar_transmissao_dupla(yt, bid: str):
+    """Ativa transmissão dupla (MULTI_ASPECT_MODE_CROP) via API interna do YouTube.
+    O YouTube gera automaticamente a versão 9:16 a partir da horizontal."""
+    try:
+        items = yt.liveBroadcasts().list(part="snippet", id=bid).execute().get("items", [])
+        if not items:
+            log.warning(f"[DUPLA] Broadcast {bid} não encontrado")
+            return
+        video_id = items[0]["snippet"].get("videoId", "") or bid
+        if not video_id:
+            log.warning(f"[DUPLA] videoId não encontrado para broadcast {bid}")
+            return
+        creds = yt._http.credentials
+        token = getattr(creds, "token", None)
+        if not token:
+            log.warning("[DUPLA] Token OAuth não disponível para transmissão dupla")
+            return
+        payload = json.dumps({
+            "encryptedVideoId": video_id,
+            "multiAspectCreatorSettings": {"mode": "MULTI_ASPECT_MODE_CROP"},
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://www.youtube.com/youtubei/v1/video_manager/metadata_update",
+            data=payload,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            status = resp.status
+        if status == 200:
+            log.info(f"[DUPLA] Transmissão dupla ativada: broadcast {bid} → video {video_id}")
+        else:
+            log.warning(f"[DUPLA] Resposta inesperada {status} ao ativar transmissão dupla")
+    except Exception as e:
+        log.warning(f"[DUPLA] Erro ao ativar transmissão dupla: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════
