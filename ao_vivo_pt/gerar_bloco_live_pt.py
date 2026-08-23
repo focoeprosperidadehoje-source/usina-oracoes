@@ -35,7 +35,7 @@ from googleapiclient.discovery import build
 # ═══════════════════════════════════════════════════════════════════════
 
 FUSO       = pytz.timezone("America/Sao_Paulo")
-VOZ        = "pt-BR-FranciscaNeural"
+VOZ        = "pt-BR-ThalitaMultilingualNeural"
 VOZ_RATE   = "-30%"
 VOZ_PITCH  = "-8Hz"
 CANAL_ID   = "UClATmmCFTo_UDHgfXPjwyqw"

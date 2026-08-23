@@ -109,7 +109,7 @@ DURACAO_CICLO_SEG    = 12 * 3600     # 12h por broadcast (2×/dia = 2 notificaç
 BLOCOS_MINIMOS       = 1
 
 # TTS e Gemini
-VOZ          = "pt-BR-FranciscaNeural"
+VOZ          = "pt-BR-ThalitaMultilingualNeural"
 VOZ_RATE     = "-30%"
 VOZ_PITCH    = "-8Hz"
 MODELOS_LIVE = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
