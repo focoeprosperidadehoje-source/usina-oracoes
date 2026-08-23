@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'deploy = atualizar ao_vivo_pt.py | log = ler log | status = status + log recente'
+        description: 'deploy | log | status | limpar_blocos = apaga blocos antigos do VPS (mantém os 2 mais novos)'
         required: false
         default: 'deploy'
 
@@ -70,6 +70,26 @@ jobs:
             top -bn1 | head -5
             echo '--- DISCO ---'
             df -h /root 2>/dev/null | tail -2
+          "
+
+      - name: Limpar blocos antigos PT (modo=limpar_blocos)
+        if: ${{ github.event.inputs.modo == 'limpar_blocos' }}
+        run: |
+          ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no root@80.241.213.27 "
+            echo '--- BLOCOS ATUAIS ---'
+            ls -lt /root/ao_vivo_pt/blocos/bloco_*_h.mp4 2>/dev/null || echo 'nenhum bloco'
+            echo '--- MANTENDO OS 2 MAIS NOVOS, REMOVENDO OS DEMAIS ---'
+            cd /root/ao_vivo_pt/blocos && \
+            TOTAL=\$(ls bloco_*_h.mp4 2>/dev/null | wc -l) && \
+            echo \"Total: \$TOTAL blocos\" && \
+            if [ \"\$TOTAL\" -gt 2 ]; then
+              ls -t bloco_*_h.mp4 | tail -n +3 | xargs rm -v
+              echo 'Blocos antigos removidos.'
+            else
+              echo 'Menos de 3 blocos — nada removido.'
+            fi
+            echo '--- BLOCOS RESTANTES ---'
+            ls /root/ao_vivo_pt/blocos/bloco_*_h.mp4 2>/dev/null || echo 'nenhum'
           "
 
       - name: Remover chave SSH temporária

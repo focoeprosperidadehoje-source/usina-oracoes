@@ -1195,8 +1195,9 @@ def loop_transmissor():
                         try:
                             itens = yt.liveBroadcasts().list(part="status", id=bid_h).execute().get("items", [])
                             st = itens[0].get("status", {}).get("lifeCycleStatus", "revoked") if itens else "revoked"
+                            log.info(f"Watchdog PT: broadcast {bid_h} status={st}")
                             if st in ("complete", "revoked"):
-                                log.warning(f"Broadcast PT {bid_h} encerrado — criando novo")
+                                log.warning(f"Broadcast PT {bid_h} encerrado ({st}) — criando novo broadcast")
                                 _finalizar_broadcast(yt, bid_h)
                                 bid_h = criar_broadcast_permanente(yt)
                                 with _lock:
