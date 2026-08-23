@@ -543,6 +543,102 @@ def nomes_ficticios(n: int = 5) -> list[dict]:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# RESPOSTA AO CHAT AO VIVO
+# ═══════════════════════════════════════════════════════════════════════
+
+_RESPOSTAS_CHAT = {
+    "solidao": (
+        "¡No estás sola/solo! 🙏 Somos nuevos en las transmisiones en vivo y "
+        "cada persona que nos acompaña es una bendición de La Morenita. "
+        "Comparte esta transmisión y lleva las bendiciones de Guadalupe a más personas. ❤️"
+    ),
+    "pergunta": (
+        "🙏 Gracias por acompañarnos. Deja tu pedido en los comentarios — "
+        "La Morenita intercede por cada intención. Comparte para llevar "
+        "estas bendiciones a más almas."
+    ),
+    "agradecimento": (
+        "🙏 Dios te bendiga. La Morenita intercede por ti. "
+        "Comparte esta transmisión para llevar sus bendiciones a más personas. ❤️"
+    ),
+}
+
+def _detectar_intencao_chat(texto: str) -> str | None:
+    t = texto.lower()
+    if any(p in t for p in ["única", "unico", "único", "sola aquí", "solo aquí",
+                              "soy la única", "soy el único", "nadie más", "nadie ve"]):
+        return "solidao"
+    if "?" in texto and len(texto) < 300:
+        return "pergunta"
+    if any(p in t for p in ["gracias", "dios te", "bendiciones", "amén", "amen"]):
+        return "agradecimento"
+    return None
+
+def _postar_resposta_chat(yt, chat_id: str, texto: str):
+    try:
+        yt.liveChatMessages().insert(
+            part="snippet",
+            body={"snippet": {
+                "liveChatId": chat_id,
+                "type": "textMessageEvent",
+                "textMessageDetails": {"messageText": texto},
+            }},
+        ).execute()
+        log.info("Chat: resposta enviada")
+    except Exception as e:
+        log.warning(f"Chat resposta: {e}")
+
+def loop_respostas_chat():
+    yt = get_youtube()
+    ids_vistos: set = set()
+    INTERVALO = 5 * 60  # só responde 1x a cada 5 min
+
+    while not _ev_parar.is_set():
+        _ev_parar.wait(timeout=INTERVALO)
+        if _ev_parar.is_set():
+            break
+
+        with _lock:
+            bid_h = _estado.get("live_id_h")
+        if not bid_h:
+            continue
+
+        try:
+            b = yt.liveBroadcasts().list(part="snippet", id=bid_h).execute()
+            if not b.get("items"):
+                continue
+            chat_id = b["items"][0]["snippet"].get("liveChatId")
+            if not chat_id:
+                continue
+
+            resp = yt.liveChatMessages().list(
+                part="snippet,authorDetails", liveChatId=chat_id, maxResults=50
+            ).execute()
+
+            respondeu = False
+            for item in resp.get("items", []):
+                msg_id = item["id"]
+                if msg_id in ids_vistos:
+                    continue
+                ids_vistos.add(msg_id)
+                if respondeu:
+                    continue
+                texto = item["snippet"].get("displayMessage", "").strip()
+                if not texto:
+                    continue
+                intencao = _detectar_intencao_chat(texto)
+                if intencao:
+                    _postar_resposta_chat(yt, chat_id, _RESPOSTAS_CHAT[intencao])
+                    respondeu = True
+
+            if len(ids_vistos) > 1000:
+                ids_vistos.clear()
+
+        except Exception as e:
+            log.warning(f"loop_respostas_chat: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # SÚPLICAS — ROTEIRO E VÍDEO
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -2025,10 +2121,11 @@ def main():
     garantir_assets_vps()
 
     threads = [
-        threading.Thread(target=loop_suplicas,    name="Suplicas",    daemon=True),
-        threading.Thread(target=loop_transmissor,  name="Transmissor",  daemon=True),
-        threading.Thread(target=loop_monitor,      name="Monitor",      daemon=True),
-        threading.Thread(target=loop_assembler,    name="Assembler",    daemon=True),
+        threading.Thread(target=loop_suplicas,       name="Suplicas",      daemon=True),
+        threading.Thread(target=loop_transmissor,    name="Transmissor",   daemon=True),
+        threading.Thread(target=loop_monitor,        name="Monitor",       daemon=True),
+        threading.Thread(target=loop_assembler,      name="Assembler",     daemon=True),
+        threading.Thread(target=loop_respostas_chat, name="RespostaChat",  daemon=True),
     ]
     for t in threads:
         t.start()
