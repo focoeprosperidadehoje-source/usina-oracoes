@@ -627,7 +627,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
                "-f", "lavfi", "-i", f"color=c=0x1a0a2e:s={res}:r=30",
                "-i", str(audio), "-t", str(dur),
                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-               "-g", "60", "-keyint_min", "30", "-threads", "2",
+               "-g", "60", "-keyint_min", "30", "-threads", "1",
                "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", str(saida)]
         _run_ffmpeg(cmd, f"suplica cor {saida.name}")
         return
@@ -670,7 +670,7 @@ def _montar_suplica(audio: Path, saida: Path, dur: int, res: str, imgs_dir: Path
         "-map", "[vout]", "-map", "[aout]",
         "-t", str(dur),
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
-        "-g", "60", "-keyint_min", "30", "-threads", "2",
+        "-g", "60", "-keyint_min", "30", "-threads", "1",
         "-c:a", "aac", "-b:a", "128k", "-r", "30", "-pix_fmt", "yuv420p",
         str(saida),
     ]
@@ -1367,7 +1367,7 @@ def loop_suplicas():
             sh = DIR_SUPLICAS / f"suplica_{ts}_h.mp4"
             sv = DIR_SUPLICAS / f"suplica_{ts}_v.mp4"
 
-            _montar_suplica(audio_path, sh, dur, "1920x1080", DIR_INSUMOS_H)
+            _montar_suplica(audio_path, sh, dur, "1280x720", DIR_INSUMOS_H)
             _montar_suplica(audio_path, sv, dur, "1080x1920", DIR_INSUMOS_V)
             audio_path.unlink(missing_ok=True)
 
