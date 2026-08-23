@@ -1461,10 +1461,14 @@ def loop_suplicas():
 
             dur = _duracao_audio(audio_path)
             sh = DIR_SUPLICAS / f"suplica_{ts}_h.mp4"
-            sv = DIR_SUPLICAS / f"suplica_{ts}_v.mp4"
 
             _montar_suplica(audio_path, sh, dur, "1280x720", DIR_INSUMOS_H)
-            _montar_suplica(audio_path, sv, dur, "1080x1920", DIR_INSUMOS_V)
+
+            sv = None
+            if STREAM_KEY_V:
+                sv = DIR_SUPLICAS / f"suplica_{ts}_v.mp4"
+                _montar_suplica(audio_path, sv, dur, "1080x1920", DIR_INSUMOS_V)
+
             audio_path.unlink(missing_ok=True)
 
             with _lock_suplica:
