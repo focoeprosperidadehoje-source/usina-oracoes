@@ -42,8 +42,8 @@ CANAL_ID   = "UClATmmCFTo_UDHgfXPjwyqw"
 DIR_BLOCOS = Path("blocos_pt")
 MAX_GRUPOS = 5
 
-MODELOS_LITE = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-MODELOS_FULL = ["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash"]
+MODELOS_LITE = ["gemini-2.5-flash-lite", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
+MODELOS_FULL = ["gemini-2.5-flash-lite", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
 
 CHAVES = [k.replace('﻿', '').strip() for k in [
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_1_PT", ""),
