@@ -1182,7 +1182,7 @@ def loop_transmissor():
             ciclo_start     = time.time()
             ultimo_check_bc = time.time()
             ultimo_suplica  = ciclo_start - (SUPLICA_INTERVAL - 5 * 60)
-            ultimo_refresh_rtmp = ciclo_start  # FFmpeg restart a cada 4h para prevenir degradação RTMP
+            ultimo_refresh_rtmp = ciclo_start - 1800  # offset -30min vs ES: PT dispara 3.5h após start, ES dispara 4h → nunca simultaneamente
 
             try:
                 while not _ev_parar.is_set():
@@ -1247,20 +1247,25 @@ def loop_transmissor():
 
                     if yt and bid_h and (time.time() - ultimo_check_bc) >= 120:
                         ultimo_check_bc = time.time()
-                        try:
-                            itens = yt.liveBroadcasts().list(part="status", id=bid_h).execute().get("items", [])
-                            st = itens[0].get("status", {}).get("lifeCycleStatus", "revoked") if itens else "revoked"
-                            log.info(f"Watchdog PT: broadcast {bid_h} status={st}")
-                            if st in ("complete", "revoked"):
-                                log.warning(f"Broadcast PT {bid_h} encerrado ({st}) — criando novo broadcast")
-                                _finalizar_broadcast(yt, bid_h)
-                                bid_h = criar_broadcast_permanente(yt)
-                                with _lock:
-                                    _estado["live_id_h"] = bid_h
-                                threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h),
-                                                 name="PublicaLivePT", daemon=True).start()
-                        except Exception as e:
-                            log.warning(f"watchdog broadcast PT: {e}")
+                        st = None
+                        for _tentativa in range(3):
+                            try:
+                                itens = yt.liveBroadcasts().list(part="status", id=bid_h).execute().get("items", [])
+                                st = itens[0].get("status", {}).get("lifeCycleStatus", "revoked") if itens else "revoked"
+                                log.info(f"Watchdog PT: broadcast {bid_h} status={st}")
+                                break
+                            except Exception as e:
+                                log.warning(f"watchdog broadcast PT (tentativa {_tentativa+1}/3): {e}")
+                                if _tentativa < 2:
+                                    time.sleep(10)
+                        if st in ("complete", "revoked"):
+                            log.warning(f"Broadcast PT {bid_h} encerrado ({st}) — criando novo broadcast")
+                            _finalizar_broadcast(yt, bid_h)
+                            bid_h = criar_broadcast_permanente(yt)
+                            with _lock:
+                                _estado["live_id_h"] = bid_h
+                            threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h),
+                                             name="PublicaLivePT", daemon=True).start()
 
                     _ev_parar.wait(timeout=10)
             finally:

@@ -2028,22 +2028,27 @@ def loop_transmissor():
                         rot_idx_h = (rot_idx_h + 1) % len(blocos)
                         log.info(f"Bloco appendado (manutencao buffer): {h_next.name} ({buf_h - elapsed:.0f}s)")
 
-                    # P0-B: watchdog do broadcast
+                    # P0-B: watchdog do broadcast (com retry 3x para tolerar timeout da API)
                     if yt and bid_h and (time.time() - ultimo_check_bc) >= 120:
                         ultimo_check_bc = time.time()
-                        try:
-                            itens = yt.liveBroadcasts().list(part="status", id=bid_h).execute().get("items", [])
-                            st = itens[0].get("status", {}).get("lifeCycleStatus", "revoked") if itens else "revoked"
-                            if st in ("complete", "revoked"):
-                                log.warning(f"Broadcast {bid_h} encerrado no meio do ciclo — criando novo")
-                                _finalizar_broadcast(yt, bid_h)
-                                bid_h = criar_broadcast_permanente(yt)
-                                with _lock:
-                                    _estado["live_id_h"] = bid_h
-                                threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
-                                                 name="PublicaLive", daemon=True).start()
-                        except Exception as e:
-                            log.warning(f"watchdog broadcast: {e}")
+                        st = None
+                        for _tentativa in range(3):
+                            try:
+                                itens = yt.liveBroadcasts().list(part="status", id=bid_h).execute().get("items", [])
+                                st = itens[0].get("status", {}).get("lifeCycleStatus", "revoked") if itens else "revoked"
+                                break
+                            except Exception as e:
+                                log.warning(f"watchdog broadcast (tentativa {_tentativa+1}/3): {e}")
+                                if _tentativa < 2:
+                                    time.sleep(10)
+                        if st in ("complete", "revoked"):
+                            log.warning(f"Broadcast {bid_h} encerrado no meio do ciclo — criando novo")
+                            _finalizar_broadcast(yt, bid_h)
+                            bid_h = criar_broadcast_permanente(yt)
+                            with _lock:
+                                _estado["live_id_h"] = bid_h
+                            threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
+                                             name="PublicaLive", daemon=True).start()
 
                     _ev_parar.wait(timeout=10)
             finally:
