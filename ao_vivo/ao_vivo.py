@@ -546,32 +546,64 @@ def nomes_ficticios(n: int = 5) -> list[dict]:
 # RESPOSTA AO CHAT AO VIVO
 # ═══════════════════════════════════════════════════════════════════════
 
-_RESPOSTAS_CHAT = {
-    "solidao": (
-        "¡No estás sola/solo! 🙏 Somos nuevos en las transmisiones en vivo y "
-        "cada persona que nos acompaña es una bendición de La Morenita. "
-        "Comparte esta transmisión y lleva las bendiciones de Guadalupe a más personas. ❤️"
-    ),
-    "pergunta": (
-        "🙏 Gracias por acompañarnos. Deja tu pedido en los comentarios — "
-        "La Morenita intercede por cada intención. Comparte para llevar "
-        "estas bendiciones a más almas."
-    ),
-    "agradecimento": (
-        "🙏 Dios te bendiga. La Morenita intercede por ti. "
-        "Comparte esta transmisión para llevar sus bendiciones a más personas. ❤️"
-    ),
-}
+_CHAT_SOLIDAO = (
+    "¡No estás sola/solo! 🙏 Cada persona que nos acompaña es una bendición "
+    "de La Morenita. Comparte esta transmisión y lleva sus bendiciones a más personas. ❤️"
+)
 
-def _detectar_intencao_chat(texto: str) -> str | None:
+_CHAT_GEMINI_KEYS = [k for k in [
+    os.environ.get("GEMINI_API_KEY", ""),
+    os.environ.get("GEMINI_API_KEY_2", ""),
+] if k]
+
+def _eh_mensagem_respondivel(texto: str) -> bool:
+    """Retorna True se a mensagem merece uma resposta (não é só emoji/símbolo/muito curta)."""
+    import re
+    if len(texto) < 6:
+        return False
+    # Só emojis/símbolos/números
+    if re.fullmatch(r'[\W\d\s]+', texto):
+        return False
+    # Palavras únicas sem sentido de pedido
+    palavras = texto.split()
+    if len(palavras) == 1 and len(texto) < 15:
+        return False
+    return True
+
+def _gerar_resposta_chat_gemini(autor: str, texto: str) -> str | None:
+    """Gera resposta personalizada com Gemini para mensagem do chat."""
+    if not _CHAT_GEMINI_KEYS:
+        return None
     t = texto.lower()
-    if any(p in t for p in ["única", "unico", "único", "sola aquí", "solo aquí",
-                              "soy la única", "soy el único", "nadie más", "nadie ve"]):
-        return "solidao"
-    if "?" in texto and len(texto) < 300:
-        return "pergunta"
-    if any(p in t for p in ["gracias", "dios te", "bendiciones", "amén", "amen"]):
-        return "agradecimento"
+    # Solidão/pergunta sobre audiência: resposta fixa mais eficaz
+    if any(p in t for p in ["única", "único", "unico", "sola aquí", "solo aquí",
+                              "soy la única", "soy el único", "nadie más", "nadie ve",
+                              "nadie está", "solo yo"]):
+        return _CHAT_SOLIDAO
+    prompt = (
+        f"Eres el canal de oración de Nuestra Señora de Guadalupe (La Morenita), "
+        f"respondiendo en el chat en vivo de una oración 24/7.\n\n"
+        f"El fiel @{autor} escribió: \"{texto}\"\n\n"
+        f"Responde en español con 1 frase corta (máx 180 caracteres): "
+        f"cálida, devota, acogedora. Menciona La Morenita o Guadalupe si es natural. "
+        f"Si es un pedido de oración, confirma que será elevado. "
+        f"Si expresa emoción, acolhe com carinho. "
+        f"Não use markdown, asteriscos nem hashtags."
+    )
+    for chave in _CHAT_GEMINI_KEYS:
+        try:
+            from google.genai import Client as GClient
+            gc = GClient(api_key=chave, http_options={'api_version': 'v1'})
+            resposta = gc.models.generate_content(
+                model='gemini-1.5-flash', contents=prompt
+            ).text.strip()
+            # Truncar para caber no chat (limite YouTube: 200 chars)
+            return resposta[:200]
+        except Exception as e:
+            if "429" in str(e) and chave != _CHAT_GEMINI_KEYS[-1]:
+                continue
+            log.warning(f"_gerar_resposta_chat_gemini: {e}")
+            return None
     return None
 
 def _postar_resposta_chat(yt, chat_id: str, texto: str):
@@ -584,19 +616,30 @@ def _postar_resposta_chat(yt, chat_id: str, texto: str):
                 "textMessageDetails": {"messageText": texto},
             }},
         ).execute()
-        log.info("Chat: resposta enviada")
+        log.info(f"Chat: resposta enviada → {texto[:60]}...")
     except Exception as e:
         log.warning(f"Chat resposta: {e}")
 
 def loop_respostas_chat():
     yt = get_youtube()
     ids_vistos: set = set()
-    INTERVALO = 5 * 60  # só responde 1x a cada 5 min
+    INTERVALO = 5 * 60      # poll a cada 5 min
+    MAX_POR_HORA = 12       # máx 12 respostas/hora (1 a cada 5min = natural)
+    respostas_hora = 0
+    hora_inicio = time.time()
 
     while not _ev_parar.is_set():
         _ev_parar.wait(timeout=INTERVALO)
         if _ev_parar.is_set():
             break
+
+        # Reset contador por hora
+        if time.time() - hora_inicio >= 3600:
+            respostas_hora = 0
+            hora_inicio = time.time()
+
+        if respostas_hora >= MAX_POR_HORA:
+            continue
 
         with _lock:
             bid_h = _estado.get("live_id_h")
@@ -624,15 +667,17 @@ def loop_respostas_chat():
                 if respondeu:
                     continue
                 texto = item["snippet"].get("displayMessage", "").strip()
-                if not texto:
+                autor = item["authorDetails"].get("displayName", "fiel")
+                if not _eh_mensagem_respondivel(texto):
                     continue
-                intencao = _detectar_intencao_chat(texto)
-                if intencao:
-                    _postar_resposta_chat(yt, chat_id, _RESPOSTAS_CHAT[intencao])
+                resposta = _gerar_resposta_chat_gemini(autor, texto)
+                if resposta:
+                    _postar_resposta_chat(yt, chat_id, resposta)
                     respondeu = True
+                    respostas_hora += 1
 
-            if len(ids_vistos) > 1000:
-                ids_vistos.clear()
+            if len(ids_vistos) > 2000:
+                ids_vistos = set(list(ids_vistos)[-500:])
 
         except Exception as e:
             log.warning(f"loop_respostas_chat: {e}")

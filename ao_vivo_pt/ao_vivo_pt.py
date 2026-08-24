@@ -1325,6 +1325,122 @@ def loop_monitor():
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# RESPOSTA AO CHAT AO VIVO
+# ═══════════════════════════════════════════════════════════════════════
+
+_CHAT_GEMINI_KEYS_PT = [k for k in [
+    os.environ.get("GEMINI_KEY_LIVE_CONTENT_1_PT", ""),
+    os.environ.get("GEMINI_KEY_LIVE_CONTENT_2_PT", ""),
+] if k]
+
+def _eh_mensagem_respondivel_pt(texto: str) -> bool:
+    import re
+    if len(texto) < 6:
+        return False
+    if re.fullmatch(r'[\W\d\s]+', texto):
+        return False
+    if len(texto.split()) == 1 and len(texto) < 15:
+        return False
+    return True
+
+def _gerar_resposta_chat_pt(autor: str, texto: str) -> str | None:
+    chaves = _CHAT_GEMINI_KEYS_PT
+    if not chaves:
+        return None
+    t = texto.lower()
+    if any(p in t for p in ["única", "único", "sozinha", "sozinho", "só eu",
+                              "sou a única", "sou o único", "ninguém mais"]):
+        return ("Você não está sozinha/sozinho! 🙏 Nossa Senhora Aparecida abençoa cada "
+                "pessoa que se junta à nossa oração. Compartilhe e leve essas bênçãos! ❤️")
+    prompt = (
+        f"Você é o canal de oração de Nossa Senhora Aparecida, respondendo no chat ao vivo 24/7.\n\n"
+        f"O fiel @{autor} escreveu: \"{texto}\"\n\n"
+        f"Responda em português do Brasil com 1 frase curta (máx 180 caracteres): "
+        f"calorosa, devota, acolhedora. Mencione Nossa Senhora Aparecida se natural. "
+        f"Se for pedido de oração, confirme que será elevado. "
+        f"Sem markdown, asteriscos nem hashtags."
+    )
+    for chave in chaves:
+        try:
+            from google.genai import Client as GClient
+            gc = GClient(api_key=chave, http_options={'api_version': 'v1'})
+            return gc.models.generate_content(model='gemini-1.5-flash', contents=prompt).text.strip()[:200]
+        except Exception as e:
+            if "429" in str(e) and chave != chaves[-1]:
+                continue
+            log.warning(f"chat_gemini PT: {e}")
+            return None
+    return None
+
+def loop_respostas_chat():
+    yt = get_youtube()
+    ids_vistos: set = set()
+    INTERVALO = 5 * 60
+    MAX_POR_HORA = 12
+    respostas_hora = 0
+    hora_inicio = time.time()
+
+    while not _ev_parar.is_set():
+        _ev_parar.wait(timeout=INTERVALO)
+        if _ev_parar.is_set():
+            break
+
+        if time.time() - hora_inicio >= 3600:
+            respostas_hora = 0
+            hora_inicio = time.time()
+        if respostas_hora >= MAX_POR_HORA:
+            continue
+
+        with _lock:
+            bid_h = _estado.get("live_id_h")
+        if not bid_h:
+            continue
+
+        try:
+            b = yt.liveBroadcasts().list(part="snippet", id=bid_h).execute()
+            if not b.get("items"):
+                continue
+            chat_id = b["items"][0]["snippet"].get("liveChatId")
+            if not chat_id:
+                continue
+
+            resp = yt.liveChatMessages().list(
+                part="snippet,authorDetails", liveChatId=chat_id, maxResults=50
+            ).execute()
+
+            respondeu = False
+            for item in resp.get("items", []):
+                msg_id = item["id"]
+                if msg_id in ids_vistos:
+                    continue
+                ids_vistos.add(msg_id)
+                if respondeu:
+                    continue
+                texto = item["snippet"].get("displayMessage", "").strip()
+                autor = item["authorDetails"].get("displayName", "fiel")
+                if not _eh_mensagem_respondivel_pt(texto):
+                    continue
+                resposta = _gerar_resposta_chat_pt(autor, texto)
+                if resposta:
+                    try:
+                        yt.liveChatMessages().insert(
+                            part="snippet",
+                            body={"snippet": {"liveChatId": chat_id, "type": "textMessageEvent",
+                                              "textMessageDetails": {"messageText": resposta}}},
+                        ).execute()
+                        log.info(f"Chat PT respondido: @{autor} → {resposta[:60]}...")
+                        respondeu = True
+                        respostas_hora += 1
+                    except Exception as e:
+                        log.warning(f"Chat PT insert: {e}")
+
+            if len(ids_vistos) > 2000:
+                ids_vistos = set(list(ids_vistos)[-500:])
+        except Exception as e:
+            log.warning(f"loop_respostas_chat PT: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -1345,10 +1461,11 @@ def main():
     garantir_assets_vps()
 
     threads = [
-        threading.Thread(target=loop_suplicas,   name="Suplicas",   daemon=True),
-        threading.Thread(target=loop_transmissor, name="Transmissor", daemon=True),
-        threading.Thread(target=loop_monitor,     name="Monitor",     daemon=True),
-        threading.Thread(target=loop_assembler,   name="Assembler",   daemon=True),
+        threading.Thread(target=loop_suplicas,        name="Suplicas",   daemon=True),
+        threading.Thread(target=loop_transmissor,     name="Transmissor", daemon=True),
+        threading.Thread(target=loop_monitor,         name="Monitor",     daemon=True),
+        threading.Thread(target=loop_assembler,       name="Assembler",   daemon=True),
+        threading.Thread(target=loop_respostas_chat,  name="ChatBot",     daemon=True),
     ]
     for t in threads:
         t.start()
