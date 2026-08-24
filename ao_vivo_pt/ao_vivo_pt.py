@@ -1204,6 +1204,7 @@ def loop_transmissor():
                     if (time.time() - ultimo_refresh_rtmp) >= 4 * 3600:
                         log.info("Refresh RTMP periódico PT: reiniciando FFmpeg H para manter sinal Excelente")
                         _matar_proc(proc_h, "H")
+                        time.sleep(2)  # aguarda YouTube registrar desconexão antes de reconectar
                         blocos_atuais = listar_blocos()
                         if blocos_atuais:
                             playlist_h, rot_idx_h, buf_nova = _construir_playlist_rolling(
