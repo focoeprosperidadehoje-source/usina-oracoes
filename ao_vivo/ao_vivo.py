@@ -1866,6 +1866,7 @@ def loop_transmissor():
             ciclo_start       = time.time()
             ultimo_check_bc   = time.time()
             ultimo_thumb_upd  = ciclo_start  # thumbnail re-aplicada a cada 3h (manhã→tarde→noite)
+            ultimo_refresh_rtmp = ciclo_start  # FFmpeg restart a cada 4h para prevenir degradação RTMP
             # 1ª súplica dispara em ~5min (não esperar 30min na 1ª vez)
             ultimo_suplica  = ciclo_start - (SUPLICA_INTERVAL - 5 * 60)
             try:
@@ -1904,6 +1905,30 @@ def loop_transmissor():
                         threading.Thread(target=_aplicar_thumbnail, args=(yt, bid_h, "H"),
                                          name="ThumbRefresh", daemon=True).start()
                         ultimo_thumb_upd = time.time()
+
+                    # Refresh periódico RTMP a cada 4h: previne degradação de sinal pelo YouTube
+                    if (time.time() - ultimo_refresh_rtmp) >= 4 * 3600:
+                        log.info("Refresh RTMP periódico: reiniciando FFmpeg H para manter sinal Excelente")
+                        _matar_proc(proc_h, "H")
+                        blocos_atuais = listar_blocos()
+                        if blocos_atuais:
+                            playlist_h, rot_idx_h, buf_nova = _construir_playlist_rolling(
+                                blocos_atuais, rot_idx_h, ROLLING_INICIAIS, "h")
+                            buf_h = elapsed + buf_nova
+                        proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
+                                                         "1280x720", "2000k", "H")
+                        if sk_v_ativo and proc_v:
+                            log.info("Refresh RTMP periódico: reiniciando FFmpeg V")
+                            _matar_proc(proc_v, "V")
+                            blocos_atuais = listar_blocos()
+                            if blocos_atuais:
+                                ri_v = _rotation_idx % len(blocos_atuais)
+                                playlist_v, _, buf_nova_v = _construir_playlist_rolling(
+                                    blocos_atuais, ri_v, ROLLING_INICIAIS, "v")
+                                buf_v = elapsed + buf_nova_v
+                            proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
+                                                             "1080x1920", "2500k", "V")
+                        ultimo_refresh_rtmp = time.time()
 
                     # Timer de súplica (a cada SUPLICA_INTERVAL = 30min)
                     if not _ev_suplica_gerar.is_set() and (time.time() - ultimo_suplica) >= SUPLICA_INTERVAL:
