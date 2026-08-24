@@ -1898,7 +1898,7 @@ def loop_transmissor():
             playlist_h, rot_idx_h, buf_h = _construir_playlist_rolling(
                 blocos, rot_idx_h, ROLLING_INICIAIS, "h")
             proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
-                                             "1280x720", "2000k", "H")
+                                             "1280x720", "1500k", "H")
             playlist_v = None
             buf_v      = 0.0
             if sk_v_ativo:
