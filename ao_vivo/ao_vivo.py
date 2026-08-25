@@ -121,7 +121,7 @@ BLOCOS_MINIMOS       = 1             # mÃ­nimo de blocos para iniciar transmissÃ
 VOZ           = "es-MX-DaliaNeural"
 VOZ_RATE      = "-20%"
 VOZ_PITCH     = "-10Hz"
-MODELOS_LIVE  = ["gemini-2.5-flash-lite", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
+MODELOS_LIVE  = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
 
 CHAVES_CONTEUDO = [c for c in [
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
@@ -599,7 +599,7 @@ def _gerar_resposta_chat_gemini(autor: str, texto: str) -> str | None:
             from google.genai import Client as GClient
             gc = GClient(api_key=chave, http_options={'api_version': 'v1'})
             resposta = gc.models.generate_content(
-                model='gemini-2.5-flash-lite', contents=prompt
+                model='gemini-flash-lite-latest', contents=prompt
             ).text.strip()
             # Truncar para caber no chat (limite YouTube: 200 chars)
             return resposta[:200]
