@@ -1929,6 +1929,8 @@ def loop_transmissor():
                 blocos, rot_idx_h, ROLLING_INICIAIS, "h")
             proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
                                              "1280x720", "2000k", "H")
+            _proc_h_start = time.time()
+            _falhas_rtmp  = 0
             playlist_v = None
             buf_v      = 0.0
             if sk_v_ativo:
@@ -1953,8 +1955,26 @@ def loop_transmissor():
 
                     # Watchdog FFmpeg H
                     if proc_h.poll() is not None:
-                        log.warning("FFmpeg H encerrou — reconstruindo rolling e reiniciando")
-                        time.sleep(5)  # previne reconexão RTMP imediata; YouTube precisa ~3s para registrar desconexão
+                        rc = proc_h.returncode
+                        uptime = time.time() - _proc_h_start
+                        if uptime < 30:
+                            _falhas_rtmp += 1
+                            espera = min(30 * (2 ** (_falhas_rtmp - 1)), 120)
+                            log.warning(f"FFmpeg H ES encerrou em {uptime:.0f}s (rc={rc}) — falha RTMP #{_falhas_rtmp}, aguardando {espera}s")
+                            _ev_parar.wait(timeout=espera)
+                            if _falhas_rtmp >= 4 and yt and bid_h:
+                                log.warning("FFmpeg H ES: 4 falhas RTMP consecutivas — forçando broadcast novo")
+                                _finalizar_broadcast(yt, bid_h)
+                                bid_h = criar_broadcast_permanente(yt)
+                                with _lock:
+                                    _estado["live_id_h"] = bid_h
+                                threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
+                                                 name="PublicaLiveH", daemon=True).start()
+                                _falhas_rtmp = 0
+                        else:
+                            _falhas_rtmp = 0
+                            log.warning(f"FFmpeg H encerrou (rc={rc}) — reconstruindo rolling e reiniciando")
+                            _ev_parar.wait(timeout=5)
                         blocos_atuais = listar_blocos()
                         if blocos_atuais:
                             playlist_h, rot_idx_h, buf_nova = _construir_playlist_rolling(
@@ -1962,6 +1982,7 @@ def loop_transmissor():
                             buf_h = elapsed + buf_nova
                         proc_h = _iniciar_proc_playlist(playlist_h, STREAM_KEY_H, INGEST_URL,
                                                          "1280x720", "2000k", "H")
+                        _proc_h_start = time.time()
 
                     # Watchdog FFmpeg V
                     if proc_v and proc_v.poll() is not None:
@@ -2007,6 +2028,8 @@ def loop_transmissor():
                             proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
                                                              "1080x1920", "2500k", "V")
                         ultimo_refresh_rtmp = time.time()
+                        _proc_h_start = time.time()
+                        _falhas_rtmp  = 0
 
                     # Timer de súplica (a cada SUPLICA_INTERVAL = 30min)
                     if not _ev_suplica_gerar.is_set() and (time.time() - ultimo_suplica) >= SUPLICA_INTERVAL:

@@ -1,0 +1,17 @@
+[Unit]
+Description=Live 24/7 Canal ES — La Morenita (Nuestra Señora de Guadalupe)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/ao_vivo_es
+EnvironmentFile=/root/ao_vivo_es/.env
+ExecStart=/usr/bin/python3 /root/ao_vivo_es/ao_vivo.py
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
