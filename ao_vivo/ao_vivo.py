@@ -1955,8 +1955,8 @@ def loop_transmissor():
                                          name="ThumbRefresh", daemon=True).start()
                         ultimo_thumb_upd = time.time()
 
-                    # Refresh periódico RTMP a cada 4h: previne degradação de sinal pelo YouTube
-                    if (time.time() - ultimo_refresh_rtmp) >= 4 * 3600:
+                    # Refresh periódico RTMP a cada 2h: previne degradação de sinal pelo YouTube
+                    if (time.time() - ultimo_refresh_rtmp) >= 2 * 3600:
                         log.info("Refresh RTMP periódico: reiniciando FFmpeg H para manter sinal Excelente")
                         _matar_proc(proc_h, "H")
                         time.sleep(2)  # aguarda YouTube registrar desconexão antes de reconectar
