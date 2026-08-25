@@ -923,10 +923,12 @@ def _iniciar_proc_playlist(playlist: Path, sk: str, nome: str) -> subprocess.Pop
         "ffmpeg",
         "-re",
         "-fflags", "+genpts",
+        "-avoid_negative_ts", "make_zero",
         "-f", "concat", "-safe", "0",
         "-i", rel_playlist,
         "-c:v", "copy",
         "-c:a", "copy",
+        "-bsf:v", "h264_mp4toannexb",
         "-f", "flv", f"{INGEST_URL}/{sk}",
     ]
     log_ffmpeg = BASE_DIR / f"ffmpeg_{nome.lower()}.log"
@@ -1251,7 +1253,7 @@ def loop_transmissor():
                         for _tentativa in range(3):
                             try:
                                 itens = yt.liveBroadcasts().list(part="status", id=bid_h).execute().get("items", [])
-                                st = itens[0].get("status", {}).get("lifeCycleStatus", "revoked") if itens else "revoked"
+                                st = itens[0].get("status", {}).get("lifeCycleStatus") if itens else None
                                 log.info(f"Watchdog PT: broadcast {bid_h} status={st}")
                                 break
                             except Exception as e:
