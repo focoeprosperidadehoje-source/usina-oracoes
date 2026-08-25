@@ -84,7 +84,7 @@ jobs:
             echo '--- FFMPEG_H SPEED + ERROS ---'
             tail -c 4000 /root/ao_vivo_es/ffmpeg_h.log 2>/dev/null | tr '\r' '\n' | grep -E 'speed=|fps=|Error|error|rtmp|RTMP|Connection|connection|keyframe|Invalid|invalid' | tail -10 || echo 'sem dados'
             echo '--- FFMPEG_H SPEED (ultimos 5s) ---'
-            tail -c 2000 /root/ao_vivo_es/ffmpeg_h.log 2>/dev/null | tr '\r' '\n' | grep -E 'speed=|fps=' | tail -5 || echo 'sem dados de speed'
+            tail -c 2000 /root/ao_vivo_es/ffmpeg_h.log 2>/dev/null | tr '\r' '\n' | grep -E 'speed=|fps=' | sed 's/speed= */speed=/g' | tail -5 || echo 'sem dados de speed'
             echo '--- FFMPEG_H ERROS SYSTEMD ---'
             journalctl -u ao_vivo_es --no-pager -n 20 2>/dev/null || echo 'sem journal'
             echo '--- CPU LOAD ---'

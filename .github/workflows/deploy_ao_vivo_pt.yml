@@ -65,7 +65,7 @@ jobs:
             echo '--- AO_VIVO PT LOG (últimas 40 linhas) ---'
             tail -40 /root/ao_vivo_pt/ao_vivo.log 2>/dev/null || echo 'sem log'
             echo '--- FFMPEG_H PT SPEED ---'
-            tail -c 2000 /root/ao_vivo_pt/ffmpeg_h.log 2>/dev/null | tr '\r' '\n' | grep -E 'speed=|fps=' | tail -5 || echo 'sem dados'
+            tail -c 2000 /root/ao_vivo_pt/ffmpeg_h.log 2>/dev/null | tr '\r' '\n' | grep -E 'speed=|fps=' | sed 's/speed= */speed=/g' | tail -5 || echo 'sem dados'
             echo '--- CPU LOAD ---'
             top -bn1 | head -5
             echo '--- DISCO ---'
