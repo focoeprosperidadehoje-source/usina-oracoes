@@ -1935,7 +1935,7 @@ def loop_transmissor():
             ciclo_start       = time.time()
             ultimo_check_bc   = time.time()
             ultimo_thumb_upd  = ciclo_start  # thumbnail re-aplicada a cada 3h (manhã→tarde→noite)
-            ultimo_refresh_rtmp = ciclo_start  # FFmpeg restart a cada 4h para prevenir degradação RTMP
+            ultimo_refresh_rtmp = ciclo_start  # FFmpeg restart a cada 12h para prevenir degradação RTMP
             # 1ª súplica dispara em ~5min (não esperar 30min na 1ª vez)
             ultimo_suplica  = ciclo_start - (SUPLICA_INTERVAL - 5 * 60)
             try:
@@ -1977,7 +1977,7 @@ def loop_transmissor():
                         ultimo_thumb_upd = time.time()
 
                     # Refresh periódico RTMP a cada 2h: previne degradação de sinal pelo YouTube
-                    if (time.time() - ultimo_refresh_rtmp) >= 2 * 3600:
+                    if (time.time() - ultimo_refresh_rtmp) >= 12 * 3600:
                         log.info("Refresh RTMP periódico: reiniciando FFmpeg H para manter sinal Excelente")
                         _matar_proc(proc_h, "H")
                         time.sleep(2)  # aguarda YouTube registrar desconexão antes de reconectar
