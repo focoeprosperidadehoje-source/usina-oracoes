@@ -1372,7 +1372,7 @@ def _eh_mensagem_respondivel_pt(texto: str) -> bool:
     return True
 
 def _gerar_resposta_chat_pt(autor: str, texto: str) -> str | None:
-    chaves = _CHAT_GEMINI_KEYS_PT
+    chaves = CHAVES_CHAT
     if not chaves:
         return None
     t = texto.lower()
@@ -1380,13 +1380,20 @@ def _gerar_resposta_chat_pt(autor: str, texto: str) -> str | None:
                               "sou a única", "sou o único", "ninguém mais"]):
         return ("Você não está sozinha/sozinho! 🙏 Nossa Senhora Aparecida abençoa cada "
                 "pessoa que se junta à nossa oração. Compartilhe e leve essas bênçãos! ❤️")
+    if any(p in t for p in ["mostra rosto", "mostra câmera", "aparece na câmera",
+                              "sem câmera", "não tem câmera", "mostra sua cara"]):
+        return ("Este canal é uma missão de oração silenciosa 🙏 A presença de Nossa Senhora "
+                "se sente no coração. Que bom tê-lo/la conosco!")
     prompt = (
-        f"Você é o canal de oração de Nossa Senhora Aparecida, respondendo no chat ao vivo 24/7.\n\n"
-        f"O fiel @{autor} escreveu: \"{texto}\"\n\n"
-        f"Responda em português do Brasil com 1 frase curta (máx 180 caracteres): "
-        f"calorosa, devota, acolhedora. Mencione Nossa Senhora Aparecida se natural. "
-        f"Se for pedido de oração, confirme que será elevado. "
-        f"Sem markdown, asteriscos nem hashtags."
+        f"Você é um mediador espiritual do canal de oração de Nossa Senhora Aparecida. "
+        f"Não é a santa — é um membro amoroso da equipe de oração.\n\n"
+        f"O fiel @{autor} escreveu no chat ao vivo: \"{texto}\"\n\n"
+        f"Responda em PORTUGUÊS DO BRASIL, máximo 2 linhas (máx 180 caracteres total). "
+        f"MODO PACIFICADOR se a mensagem for negativa ou crítica: responda com amor, respeite a visão, "
+        f"redirecione para a paz de Deus. Nunca entre em discussão. "
+        f"Se mencionar dor ou sofrimento: console e convide a deixar seus pedidos na corrente de oração 24h. "
+        f"Se pedir oração por nome: confirme que será elevado. "
+        f"Tom: caloroso, acolhedor, esperançoso. Sem markdown, asteriscos nem hashtags."
     )
     for chave in chaves:
         try:
@@ -1442,6 +1449,8 @@ def loop_respostas_chat():
                 if msg_id in ids_vistos:
                     continue
                 ids_vistos.add(msg_id)
+                if item["authorDetails"].get("isChatOwner", False):
+                    continue
                 if respondeu:
                     continue
                 texto = item["snippet"].get("displayMessage", "").strip()

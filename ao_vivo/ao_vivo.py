@@ -572,25 +572,29 @@ def _eh_mensagem_respondivel(texto: str) -> bool:
 
 def _gerar_resposta_chat_gemini(autor: str, texto: str) -> str | None:
     """Gera resposta personalizada com Gemini para mensagem do chat."""
-    if not _CHAT_GEMINI_KEYS:
+    if not CHAVES_CHAT:
         return None
     t = texto.lower()
-    # Solidão/pergunta sobre audiência: resposta fixa mais eficaz
     if any(p in t for p in ["única", "único", "unico", "sola aquí", "solo aquí",
                               "soy la única", "soy el único", "nadie más", "nadie ve",
                               "nadie está", "solo yo"]):
         return _CHAT_SOLIDAO
+    if any(p in t for p in ["muestra tu cara", "muéstrate", "show your face",
+                              "pon cámara", "sin cámara", "no tienes cámara"]):
+        return ("Esta es una misión de oración silenciosa 🙏 La presencia de La Morenita "
+                "se siente en el corazón, no en imágenes. ¡Bienvenido/a!")
     prompt = (
-        f"Eres el canal de oración de Nuestra Señora de Guadalupe (La Morenita), "
-        f"respondiendo en el chat en vivo de una oración 24/7.\n\n"
-        f"El fiel @{autor} escribió: \"{texto}\"\n\n"
-        f"Responde en español con 1 frase corta (máx 180 caracteres): "
-        f"cálida, devota, acogedora. Menciona La Morenita o Guadalupe si es natural. "
-        f"Si es un pedido de oración, confirma que será elevado. "
-        f"Si expresa emoción, acolhe com carinho. "
-        f"Não use markdown, asteriscos nem hashtags."
+        f"Eres un mediador espiritual del canal de oración de La Morenita (Nuestra Señora de Guadalupe). "
+        f"No eres la santa — eres un miembro amoroso del equipo de oración.\n\n"
+        f"El fiel @{autor} escribió en el chat en vivo: \"{texto}\"\n\n"
+        f"Responde en ESPAÑOL, máximo 2 líneas (máx 180 caracteres total). "
+        f"MODO PACIFICADOR si el mensaje es negativo o crítico: responde con amor, respeta su visión, "
+        f"redirige a la paz de Dios. Nunca entres en discusión. "
+        f"Si menciona dolor o sufrimiento: consuela e invita a dejar sus pedidos en la corriente de oración 24h. "
+        f"Si pide oración por nombre: confirma que será elevado. "
+        f"Tono: cálido, acogedor, esperanzador. Sin markdown, asteriscos ni hashtags."
     )
-    for chave in _CHAT_GEMINI_KEYS:
+    for chave in CHAVES_CHAT:
         try:
             from google.genai import Client as GClient
             gc = GClient(api_key=chave, http_options={'api_version': 'v1'})
@@ -664,6 +668,8 @@ def loop_respostas_chat():
                 if msg_id in ids_vistos:
                     continue
                 ids_vistos.add(msg_id)
+                if item["authorDetails"].get("isChatOwner", False):
+                    continue
                 if respondeu:
                     continue
                 texto = item["snippet"].get("displayMessage", "").strip()
