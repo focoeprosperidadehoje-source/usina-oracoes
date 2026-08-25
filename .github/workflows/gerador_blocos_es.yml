@@ -2,7 +2,7 @@ name: 🎙️ Gerador de Áudio Live ES
 
 on:
   schedule:
-    - cron: '0 6,12,18 * * *'   # 3×/dia: 6h, 12h, 18h UTC
+    - cron: '0 4,8,12,16,20,0 * * *'   # 6×/dia: offset 3h antes do PT (0 7,11,15,19,23,3) para evitar sobreposição no VPS1
   workflow_dispatch:              # disparo manual
 
 jobs:

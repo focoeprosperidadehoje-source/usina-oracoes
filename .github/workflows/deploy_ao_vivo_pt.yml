@@ -1,10 +1,6 @@
 name: Deploy ao_vivo_pt.py → VPS
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'ao_vivo_pt/ao_vivo_pt.py'   # auto-deploy sempre que ao_vivo_pt.py mudar
   workflow_dispatch:
     inputs:
       modo:
