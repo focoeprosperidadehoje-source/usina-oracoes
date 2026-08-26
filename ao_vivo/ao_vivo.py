@@ -1898,12 +1898,23 @@ def loop_transmissor():
             # P0-B/BUG15: adota broadcast JÁ AO VIVO (sobrevivente de restart ou
             # de transition falha) ou cria um novo. Limpa órfãos "Programado".
             bid_h = None
+            elapsed_adopted = 0.0
             if yt:
                 try:
                     _limpar_orfaos(yt)
                     bid_h = adotar_broadcast_ativo(yt)
                     if not bid_h:
                         bid_h = criar_broadcast_permanente(yt)
+                    else:
+                        try:
+                            r2 = yt.liveBroadcasts().list(part="snippet", id=bid_h).execute()
+                            actual = r2["items"][0]["snippet"].get("actualStartTime", "")
+                            if actual:
+                                t0 = datetime.fromisoformat(actual.replace("Z", "+00:00"))
+                                elapsed_adopted = (datetime.now(timezone.utc) - t0).total_seconds()
+                                log.info(f"Broadcast adotado em execução há {elapsed_adopted/3600:.1f}h — ajustando relógio do ciclo")
+                        except Exception as _e:
+                            log.warning(f"elapsed_adopted check: {_e}")
                     with _lock:
                         _estado["live_id_h"] = bid_h
                     threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
@@ -1940,7 +1951,7 @@ def loop_transmissor():
                 proc_v = _iniciar_proc_playlist(playlist_v, sk_v_ativo, INGEST_URL,
                                                  "1080x1920", "2500k", "V")
 
-            ciclo_start       = time.time()
+            ciclo_start       = time.time() - elapsed_adopted
             ultimo_check_bc   = time.time()
             ultimo_thumb_upd  = ciclo_start  # thumbnail re-aplicada a cada 3h (manhã→tarde→noite)
             ultimo_refresh_rtmp = ciclo_start  # FFmpeg restart a cada 12h para prevenir degradação RTMP
