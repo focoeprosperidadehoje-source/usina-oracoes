@@ -1905,13 +1905,17 @@ def loop_transmissor():
                     bid_h = adotar_broadcast_ativo(yt)
                     if not bid_h:
                         for _tentativa_bc in range(5):
-                            bid_h = criar_broadcast_permanente(yt)
+                            try:
+                                bid_h = criar_broadcast_permanente(yt)
+                            except Exception as _ebc:
+                                log.warning(f"criar_broadcast ES: tentativa {_tentativa_bc+1}/5 ERRO: {_ebc}")
+                                bid_h = None
                             if bid_h:
                                 break
-                            log.warning(f"criar_broadcast: tentativa {_tentativa_bc+1}/5 falhou — aguardando 30s")
+                            log.warning(f"criar_broadcast ES: tentativa {_tentativa_bc+1}/5 sem ID — aguardando 30s")
                             _ev_parar.wait(timeout=30)
                         if not bid_h:
-                            log.error("criar_broadcast: todas as 5 tentativas falharam — watchdog tentará a cada 2min")
+                            log.error("criar_broadcast ES: todas as 5 tentativas falharam — watchdog tentará a cada 2min")
                     else:
                         try:
                             r2 = yt.liveBroadcasts().list(part="snippet", id=bid_h).execute()
@@ -1922,10 +1926,11 @@ def loop_transmissor():
                                 log.info(f"Broadcast adotado em execução há {elapsed_adopted/3600:.1f}h — ajustando relógio do ciclo")
                         except Exception as _e:
                             log.warning(f"elapsed_adopted check: {_e}")
-                    with _lock:
-                        _estado["live_id_h"] = bid_h
-                    threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
-                                     name="PublicaLive", daemon=True).start()
+                    if bid_h:
+                        with _lock:
+                            _estado["live_id_h"] = bid_h
+                        threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
+                                         name="PublicaLive", daemon=True).start()
                 except Exception as e:
                     log.error(f"broadcast do ciclo: {e} — ciclo segue só com a stream key")
 
@@ -2106,7 +2111,11 @@ def loop_transmissor():
                         ultimo_check_bc = time.time()
                         if not bid_h:
                             log.warning("Watchdog ES: bid_h=None — tentando criar broadcast agora")
-                            bid_h = criar_broadcast_permanente(yt)
+                            try:
+                                bid_h = criar_broadcast_permanente(yt)
+                            except Exception as _ewdg:
+                                log.warning(f"Watchdog ES: criar_broadcast falhou: {_ewdg}")
+                                bid_h = None
                             if bid_h:
                                 with _lock:
                                     _estado["live_id_h"] = bid_h
@@ -2126,11 +2135,16 @@ def loop_transmissor():
                             if st in ("complete", "revoked"):
                                 log.warning(f"Broadcast {bid_h} encerrado no meio do ciclo — criando novo")
                                 _finalizar_broadcast(yt, bid_h)
-                                bid_h = criar_broadcast_permanente(yt)
-                                with _lock:
-                                    _estado["live_id_h"] = bid_h
-                                threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
-                                                 name="PublicaLive", daemon=True).start()
+                                try:
+                                    bid_h = criar_broadcast_permanente(yt)
+                                except Exception as _erv:
+                                    log.warning(f"Watchdog ES (revoked): criar_broadcast falhou: {_erv}")
+                                    bid_h = None
+                                if bid_h:
+                                    with _lock:
+                                        _estado["live_id_h"] = bid_h
+                                    threading.Thread(target=_publicar_apos_golive, args=(yt, bid_h, 60, 1800, "H"),
+                                                     name="PublicaLive", daemon=True).start()
 
                     _ev_parar.wait(timeout=10)
             finally:
