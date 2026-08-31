@@ -1,0 +1,33 @@
+name: 🏷️ Renomear VODs históricos (ES e PT)
+
+on:
+  workflow_dispatch:
+    inputs:
+      canal:
+        description: 'Canal a processar'
+        required: true
+        default: 'ES'
+        type: choice
+        options: [ES, PT, AMBOS]
+
+jobs:
+  renomear:
+    name: Renomear VODs — ${{ matrix.canal }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        canal: ${{ fromJSON(github.event.inputs.canal == 'AMBOS' && '["ES","PT"]' || format('["{0}"]', github.event.inputs.canal)) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependências
+        run: pip install --quiet google-api-python-client google-auth pytz
+
+      - name: Renomear VODs históricos
+        env:
+          CANAL: ${{ matrix.canal }}
+          YOUTUBE_TOKEN_ES: ${{ secrets.YOUTUBE_TOKEN_ES }}
+          YOUTUBE_TOKEN_PT: ${{ secrets.YOUTUBE_TOKEN_PT }}
+        run: python3 renomear_vods_historico.py
