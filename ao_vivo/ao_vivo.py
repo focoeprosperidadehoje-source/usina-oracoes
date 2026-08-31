@@ -955,6 +955,105 @@ DESCRICAO_LIVE = (
 _stream_id_cache   = {"id": None}
 _stream_id_cache_v = {"id": None}
 
+# ── Playlists temáticas de VOD ───────────────────────────────────────────
+PLAYLISTS_TEMATICAS_FILE = BASE_DIR / "playlists_tematicas.json"
+_NOMES_PLAYLIST_TEMATICA = {
+    0: "La Morenita — Protección y Guerra Espiritual",
+    1: "La Morenita — Liberación de Ataduras",
+    2: "La Morenita — Restauración Familiar",
+    3: "La Morenita — Providencia y Puertas Abiertas",
+    4: "La Morenita — Sanación y Curación",
+    5: "La Morenita — El Manto Sagrado",
+    6: "La Morenita — Milagros y Gratitud",
+}
+_cache_playlists_tematicas: dict = {}
+
+
+def _garantir_playlists_tematicas(yt) -> dict:
+    """Garante que todas as playlists temáticas existem no canal.
+    Lê cache local; cria playlists ausentes via API. Retorna {str(weekday): playlist_id}."""
+    global _cache_playlists_tematicas
+    if _cache_playlists_tematicas:
+        return _cache_playlists_tematicas
+    if PLAYLISTS_TEMATICAS_FILE.exists():
+        try:
+            cached = json.loads(PLAYLISTS_TEMATICAS_FILE.read_text())
+            if len(cached) == 7:
+                _cache_playlists_tematicas = cached
+                return cached
+        except Exception:
+            pass
+    existentes = {}
+    token = None
+    while True:
+        resp = yt.playlists().list(part="snippet", mine=True, maxResults=50, pageToken=token).execute()
+        for p in resp.get("items", []):
+            existentes[p["snippet"]["title"]] = p["id"]
+        token = resp.get("nextPageToken")
+        if not token:
+            break
+    ids = {}
+    for weekday, nome in _NOMES_PLAYLIST_TEMATICA.items():
+        if nome in existentes:
+            ids[str(weekday)] = existentes[nome]
+            log.info(f"Playlist temática encontrada: {nome} → {existentes[nome]}")
+        else:
+            try:
+                r = yt.playlists().insert(
+                    part="snippet,status",
+                    body={
+                        "snippet": {
+                            "title": nome,
+                            "description": f"Oraciones en vivo y VODs — {nome}",
+                            "defaultLanguage": "es",
+                        },
+                        "status": {"privacyStatus": "public"},
+                    }
+                ).execute()
+                ids[str(weekday)] = r["id"]
+                log.info(f"Playlist temática CRIADA: {nome} → {r['id']}")
+            except Exception as e:
+                log.warning(f"Criar playlist '{nome}': {e}")
+    PLAYLISTS_TEMATICAS_FILE.write_text(json.dumps(ids))
+    _cache_playlists_tematicas = ids
+    return ids
+
+
+def _renomear_vod_e_classificar(bid: str):
+    """Aguarda processamento do VOD, renomeia com título único e o adiciona
+    na playlist temática do tema do dia. Roda em thread daemon."""
+    time.sleep(180)  # YouTube demora 2-3min para processar o VOD após transition
+    try:
+        yt2 = get_youtube()
+    except Exception as e:
+        log.warning(f"_renomear_vod: get_youtube falhou: {e}")
+        return
+    now = datetime.now(FUSO)
+    weekday = now.weekday()
+    titulo_base = re.sub(r"[🔴🟢🔵]|— Oración Poderosa|\s*EN VIVO", "", TITULOS_LIVE[weekday]).strip()
+    titulo_vod = f"{titulo_base} · {now.strftime('%d/%m %Hh')}"[:100]
+    try:
+        yt2.videos().update(
+            part="snippet",
+            body={"id": bid, "snippet": {"title": titulo_vod, "categoryId": "22",
+                                          "description": DESCRICAO_LIVE}},
+        ).execute()
+        log.info(f"VOD {bid} renomeado: {titulo_vod}")
+    except Exception as e:
+        log.warning(f"renomear VOD {bid}: {e}")
+    try:
+        pls = _garantir_playlists_tematicas(yt2)
+        pid = pls.get(str(weekday))
+        if pid:
+            yt2.playlistItems().insert(
+                part="snippet",
+                body={"snippet": {"playlistId": pid,
+                                  "resourceId": {"kind": "youtube#video", "videoId": bid}}},
+            ).execute()
+            log.info(f"VOD {bid} → playlist temática weekday={weekday}: {pid}")
+    except Exception as e:
+        log.warning(f"playlist temática VOD {bid}: {e}")
+
 
 def _titulo_live_do_dia() -> str:
     return TITULOS_LIVE[datetime.now(FUSO).weekday()]
@@ -1368,14 +1467,15 @@ def _ativar_transmissao_dupla(yt, bid: str):
 
 
 def _finalizar_broadcast(yt, bid: str):
-    """Encerra o broadcast do ciclo (salva VOD) e insere o VOD na playlist de
-    lives (playlistItems.insert é silencioso — não notifica)."""
+    """Encerra o broadcast do ciclo (salva VOD), insere na playlist de lives
+    e lança thread para renomear + classificar o VOD por tema."""
     try:
         yt.liveBroadcasts().transition(broadcastStatus="complete", id=bid,
                                        part="id,status").execute()
         log.info(f"Broadcast {bid} encerrado — VOD em processamento.")
     except Exception as e:
         log.warning(f"finalizar {bid}: transition ({e}) — autoStop pode já ter encerrado")
+    threading.Thread(target=_renomear_vod_e_classificar, args=(bid,), daemon=True).start()
     # Retry: YouTube demora 2-5min para processar VOD apos transition("complete")
     for tentativa in range(1, 4):
         try:
