@@ -77,12 +77,21 @@ if not cfg:
 FUSO = pytz.timezone(cfg["fuso"])
 
 # ── Autenticação OAuth ──────────────────────────────────────────────────
-token_raw = os.environ.get(cfg["token_env"], "").lstrip("﻿").strip()
+token_raw = os.environ.get(cfg["token_env"], "").lstrip("\xef\xbb\xbf﻿").strip()
 if not token_raw:
     print(f"Token {cfg['token_env']} não encontrado.")
     sys.exit(1)
 
-t = json.loads(token_raw)
+# Extrair apenas o primeiro objeto JSON (elimina conteúdo extra após o fechamento)
+try:
+    t = json.loads(token_raw)
+except json.JSONDecodeError:
+    import re as _re
+    m = _re.search(r'\{.*\}', token_raw, _re.DOTALL)
+    if not m:
+        print(f"Token {cfg['token_env']} não é JSON válido.")
+        sys.exit(1)
+    t = json.loads(m.group())
 creds = Credentials(
     token=t.get("access_token") or t.get("token"),
     refresh_token=t.get("refresh_token"),
