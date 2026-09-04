@@ -304,21 +304,30 @@ for index, linha in enumerate(dados, start=2):
         body = {"snippet": {"title": titulo[:100], "description": descricao_final, "tags": tags_lista, "categoryId": "22", "defaultLanguage": "es-419", "defaultAudioLanguage": "es-419"}, "status": {"privacyStatus": "private" if publish_at else "public", "selfDeclaredMadeForKids": False, "selfDeclaredMadeWithAlteredContent": True}}
         if publish_at: body["status"]["publishAt"] = publish_at
 
+        video_id = None
         for _ in range(3):
             try:
                 video_id = youtube.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video_final, chunksize=-1, resumable=True, mimetype="video/mp4")).execute().get("id")
                 print(f"   ✅ Vídeo enviado! ID: {video_id}")
-                
+                break
+            except Exception as e:
+                print(f"   ❌ Erro upload: {e}")
+                time.sleep(15)
+        if video_id:
+            try:
                 if os.path.exists(thumb_path): youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute()
+            except Exception as e: print(f"   ⚠️ Thumb: {e}")
+            try:
                 if os.path.exists(caminho_vtt): youtube.captions().insert(part="snippet", body={"snippet": {"videoId": video_id, "language": "es-419", "name": "Español", "isDraft": False}}, media_body=MediaFileUpload(caminho_vtt)).execute()
-                
+            except Exception as e: print(f"   ⚠️ Legenda: {e}")
+            try:
                 pid = "PLpWSsa4Rjy3YGN93lFtIHAb8zs6tZb9VA" if persona == 'JESUS' else "PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w"
                 if pid: youtube.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute()
-                
+            except Exception as e: print(f"   ⚠️ Playlist: {e}")
+            try:
                 aba_principal.update_cell(index, col_status, 'Publicado')
                 print(f"   🎉 SUCESSO TOTAL! Linha {index} finalizada.")
-                break
-            except Exception as e: time.sleep(15)
-        break 
+            except Exception as e: print(f"   ⚠️ Planilha: {e}")
+        break
 
 print("\n🚀 SERVIDOR MATRIX DESLIGANDO.")

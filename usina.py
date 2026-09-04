@@ -124,7 +124,6 @@ PILARES = {
 }
 
 GRADE_DIARIA =[
-    {"horario": "06:00", "personagem": "Jesus", "idioma": "ES", "foco": "Mañana: Consagración, fuerza y protección.", "periodo": "en esta mañana"},
     {"horario": "18:00", "personagem": "Maria", "idioma": "ES", "foco": "Atardecer y Noche: Acogimiento maternal, entrega de los problemas, descanso profundo y paz.", "periodo": "en este atardecer"}
 ]
 

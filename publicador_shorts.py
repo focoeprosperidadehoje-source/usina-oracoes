@@ -187,7 +187,10 @@ for index, linha in enumerate(dados, start=2):
                     youtube.playlistItems().insert(part="snippet", body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute()
                 except Exception as e: print(f"   ⚠️ Aviso: Não foi possível adicionar à playlist: {e}")
                 
-                aba_shorts.update_cell(index, col_status, 'Publicado')
+                try:
+                    aba_shorts.update_cell(index, col_status, 'Publicado')
+                    print(f"   📋 Planilha atualizada. Linha {index} finalizada.")
+                except Exception as e: print(f"   ⚠️ Falha ao atualizar planilha: {e}")
                 break
             except Exception as e:
                 print(f"   ❌ Erro no YouTube (Tentativa {tentativa+1}/3): {e}")
