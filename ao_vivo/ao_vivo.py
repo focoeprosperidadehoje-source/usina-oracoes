@@ -1469,12 +1469,16 @@ def _ativar_transmissao_dupla(yt, bid: str):
 def _finalizar_broadcast(yt, bid: str):
     """Encerra o broadcast do ciclo (salva VOD), insere na playlist de lives
     e lança thread para renomear + classificar o VOD por tema."""
-    try:
-        yt.liveBroadcasts().transition(broadcastStatus="complete", id=bid,
-                                       part="id,status").execute()
-        log.info(f"Broadcast {bid} encerrado — VOD em processamento.")
-    except Exception as e:
-        log.warning(f"finalizar {bid}: transition ({e}) — autoStop pode já ter encerrado")
+    for _t in range(3):
+        try:
+            yt.liveBroadcasts().transition(broadcastStatus="complete", id=bid,
+                                           part="id,status").execute()
+            log.info(f"Broadcast {bid} encerrado — VOD em processamento.")
+            break
+        except Exception as e:
+            log.warning(f"finalizar {bid}: transition tentativa {_t+1}/3: {e}")
+            if _t < 2:
+                time.sleep(15)
     threading.Thread(target=_renomear_vod_e_classificar, args=(bid,), daemon=True).start()
     # Retry: YouTube demora 2-5min para processar VOD apos transition("complete")
     for tentativa in range(1, 4):
@@ -1977,13 +1981,19 @@ def loop_transmissor():
         yt = None
         try:
             yt = get_youtube()
-            log.info("YouTube API OK — broadcast novo a cada ciclo de 6h.")
+            log.info("YouTube API OK — broadcast novo a cada ciclo de 12h.")
         except Exception as e:
             log.error(f"YouTube API indisponível ({e}) — SEM auto-broadcast!")
 
         while not _ev_parar.is_set():
             ciclo += 1
-            log.info(f"Transmissor — ciclo {ciclo} de 6h (playlist contínua — sem gap entre blocos)")
+            log.info(f"Transmissor — ciclo {ciclo} de 12h (playlist contínua — sem gap entre blocos)")
+            if yt is None:
+                try:
+                    yt = get_youtube()
+                    log.info(f"YouTube API ES re-inicializado no ciclo {ciclo}.")
+                except Exception as _reinit:
+                    log.warning(f"YouTube API ES re-init falhou no ciclo {ciclo}: {_reinit}")
             proc_h = proc_v = None
 
             # Aguardar blocos disponíveis
@@ -2279,7 +2289,7 @@ def loop_transmissor():
             if _ev_parar.is_set():
                 break
             # Stream offline → YouTube processa e salva VOD deste ciclo
-            log.info("Ciclo 6h concluído — aguardando 60s para YouTube salvar VOD...")
+            log.info("Ciclo 12h concluído — aguardando 60s para YouTube salvar VOD...")
             if _ev_parar.wait(timeout=60):
                 break
             log.info(f"Reiniciando stream (ciclo {ciclo + 1})...")
