@@ -627,7 +627,7 @@ def _postar_resposta_chat(yt, chat_id: str, texto: str):
 def loop_respostas_chat():
     yt = get_youtube()
     ids_vistos: set = set()
-    INTERVALO = 5 * 60      # poll a cada 5 min
+    INTERVALO = 10 * 60      # poll a cada 5 min
     MAX_POR_HORA = 12       # máx 12 respostas/hora (1 a cada 5min = natural)
     respostas_hora = 0
     hora_inicio = time.time()
@@ -2131,7 +2131,7 @@ def loop_transmissor():
                                                              "1080x1920", "2500k", "V")
 
                     # Refresh de thumbnail a cada 3h para acompanhar mudança de período (manhã/tarde/noite)
-                    if bid_h and (time.time() - ultimo_thumb_upd) >= 3 * 3600:
+                    if bid_h and (time.time() - ultimo_thumb_upd) >= 6 * 3600:
                         threading.Thread(target=_aplicar_thumbnail, args=(yt, bid_h, "H"),
                                          name="ThumbRefresh", daemon=True).start()
                         ultimo_thumb_upd = time.time()
@@ -2217,7 +2217,7 @@ def loop_transmissor():
 
                     # P0-B: watchdog do broadcast (com retry 3x para tolerar timeout da API)
                     # Também recupera quando bid_h=None (falha na criação no início do ciclo)
-                    if yt and (time.time() - ultimo_check_bc) >= 120:
+                    if yt and (time.time() - ultimo_check_bc) >= 600:
                         ultimo_check_bc = time.time()
                         if not bid_h:
                             log.warning("Watchdog ES: bid_h=None — tentando criar broadcast agora")
