@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '0 12 * * *' # 09:00 BRT
     - cron: '0 18 * * *' # 15:00 BRT
+  workflow_run:  # renderiza logo depois de cada execução da usina
+    workflows: ["1. Usina Longos (ES)"]
+    types: [completed]
   workflow_dispatch: 
 
 jobs:
@@ -14,7 +17,7 @@ jobs:
     timeout-minutes: 120
     strategy:
       matrix:
-        horario: ['18:00'] # Apenas Nossa Senhora noite
+        horario: ['06:00', '18:00'] # Apenas Nossa Senhora noite
       fail-fast: false
 
     steps:

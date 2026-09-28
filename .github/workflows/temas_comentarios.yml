@@ -1,0 +1,28 @@
+name: 4. Temas dos Comentarios (Novenas)
+
+on:
+  schedule:
+    - cron: '0 6 * * 0' # domingo 02:00 BRT
+  push:
+    paths:
+      - '.github/workflows/temas_comentarios.yml'
+  workflow_dispatch:
+
+jobs:
+  ranking:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3'
+      - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 gspread google-genai
+      - env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          YOUTUBE_TOKEN_ES: ${{ secrets.YOUTUBE_TOKEN_ES }}
+        run: python temas_comentarios.py
