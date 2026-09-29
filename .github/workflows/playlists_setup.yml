@@ -1,0 +1,31 @@
+name: 5. Playlists das Novenas (ES)
+
+on:
+  schedule:
+    - cron: '37 9 * * 1' # segunda
+  push:
+    paths:
+      - '.github/workflows/playlists_setup.yml'
+      - 'playlists_setup.py'
+  workflow_dispatch:
+
+jobs:
+  playlists:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3'
+      - run: pip install google-api-python-client google-auth-oauthlib google-auth-httplib2 gspread google-genai pytz
+      - env:
+          CANAL: "ES"
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          YOUTUBE_TOKEN_ES: ${{ secrets.YOUTUBE_TOKEN_ES }}
+          CURADA_TITULO: "Las Oraciones Más Poderosas con La Morenita"
+          CURADA_IDS: "jVZsbEcC-pw,Dxa3KWJ4Yd0,TdH1b2EuB4I,U_CChvaqT_g"
+          CURADA_DESC: "Las oraciones que más tocaron el corazón de nuestra comunidad. Reza con La Morenita, la Virgen de Guadalupe: puertas abiertas, sanación, restauración familiar y liberación. Deja tu intención en los comentarios."
+        run: python playlists_setup.py
