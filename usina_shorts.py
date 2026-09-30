@@ -119,7 +119,7 @@ for data_alvo, grade_para_processar in gaps:
         {contexto_eco}
 
         ESTRUCTURA OBLIGATORIA DEL GUION (LOOP PERFECTO):
-        1. GANCHO (Inicio): La primera frase del video. OBLIGATORIO empezar con puntos suspensivos en minúscula ("..."). Es el complemento sintáctico de la frase final — juntas forman una sola frase continua y completa. Usa palabras de urgencia como "Milagro" o "Sanación".
+        1. GANCHO (Inicio): La primera frase del video. OBLIGATORIO empezar con puntos suspensivos en minúscula ("..."). Es el complemento sintáctico de la frase final — juntas forman una sola frase continua y completa. Usa palabras de urgencia como "Milagro" o "Sanación". REGLA DE RETENCIÓN (obligatoria): en las primeras 10 palabras la frase inicial habla DIRECTO al dolor de quien mira, en segunda persona y ligada al tema del día (ej.: "...si alguien en tu casa está enfermo, esta oración es para ti."). Prohibido abrir con saludo, contexto o frase genérica — el espectador decide en 2 segundos si se queda.
         2. ORACIÓN: Escribe EXACTAMENTE esta oración en el medio: "{oracao_padrao}"
         3. FRASE DE LOOP (Final): La última frase del video. OBLIGATORIAMENTE debe ser SINTÁCTICAMENTE INCOMPLETA — una cláusula abierta cuyo complemento natural es exactamente la frase inicial. El oyente no percibe el corte porque el cerebro une fin e inicio como una sola frase continua.
         4. CTA LIVE (1 frase, después del loop): Una frase ultra-breve invitando a la oración EN VIVO 24 horas del canal. Ej: "Estamos EN VIVO ahora mismo — únete al canal y recibe tu milagro."

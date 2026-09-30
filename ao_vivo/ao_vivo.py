@@ -529,17 +529,11 @@ def extrair_suplicantes(msgs: list[dict], max_s: int = 6) -> list[dict]:
     return resultado
 
 def nomes_ficticios(n: int = 5) -> list[dict]:
-    nomes = ["María", "Carlos", "Ana", "Roberto", "Patricia", "Miguel",
-             "Rosa", "Fernando", "Elena", "Juan", "Sofía", "Carmen"]
-    pedidos = [
-        "la salud de su madre enferma",
-        "trabajo urgente para su familia",
-        "la restauración de su matrimonio",
-        "liberación de una adicción",
-        "un milagro económico urgente",
-        "protección sobre su hogar e hijos",
-    ]
-    return [{"nome": random.choice(nomes), "pedido": random.choice(pedidos)} for _ in range(n)]
+    # SEM NOMES INVENTADOS (decisao Leandro 2026-09-29): quando nao ha pedidos reais,
+    # a suplica intercede por GRUPOS da comunidade, nunca por pessoas ficticias.
+    grupos = [('los enfermos de nuestra comunidad de oración', 'su sanación y alivio'), ('las familias que nos escriben cada día', 'la unión y la paz en sus hogares'), ('quienes buscan trabajo', 'puertas abiertas y sustento'), ('quienes luchan contra una adicción', 'liberación y fuerza'), ('las madres y padres que oran por sus hijos', 'la protección de sus hijos'), ('los que están solos o tristes esta noche', 'consuelo y compañía')]
+    escolha = random.sample(grupos, k=min(3, len(grupos)))
+    return [{"nome": g, "pedido": p} for g, p in escolha]
 
 
 # ═══════════════════════════════════════════════════════════════════════

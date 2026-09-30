@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import json
 import time
@@ -354,13 +354,13 @@ for video in grade_para_processar:
     9. PAUSAS: OBLIGATORIO usar abundantes puntos suspensivos (...) para forzar pausas en la voz.
     10. CENSURA: PROHIBIDO descripciones de violencia física.
     11. CERO INTERJECCIONES: PROHIBIDO usar "¡Ay!", "¡Oh!".
-    12. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes. Después añade una frase breve invitando a suscribirse al canal: hazla sonar como llamada espiritual (ej: 'Si esta oración tocó tu corazón, únete a nuestra familia de fe — suscríbete para recibir oraciones cada día'). Nunca suena como publicidad.
+    12. CIERRE: {cta_comentarios} Hazlo sonar como misión de fe, NUNCA pidiendo likes. Después añade una frase breve invitando a suscribirse al canal: hazla sonar como llamada espiritual (ej: 'Si esta oración tocó tu corazón, únete a nuestra familia de fe — suscríbete para recibir oraciones cada día'). Nunca suena como publicidad. Además, pide con naturalidad que el fiel ENVÍE esta oración a alguien que la necesita (ej.: "Si mientras orábamos pensaste en alguien, envíale esta oración ahora mismo."). Compartir es el pedido principal del final.
     13. ANTI-JSON: Escribe en TEXTO PLANO. PROHIBIDO JSON, llaves {{ }} o asteriscos (*).
     {regra_persona}
     {regra_meditacao}
     FORMATO EXACTO:
     {instrucao_titulo}
-    THUMB:[Frase de impacto de MÁXIMO 4 PALABRAS. Promesa urgente. SIN ASTERISCOS NI CORCHETES]
+    THUMB:[MODELO CAMPEÓN (datos reales de CTR): 2 o 3 palabras = RESULTADO CONCRETO + palabra de urgencia al final (HOY / AHORA). Ej: "MILAGRO HOY", "PUERTAS ABIERTAS AHORA", "SANACIÓN HOY", "FAMILIA RESTAURADA HOY". PROHIBIDO solo palabras de calma/abstractas sin resultado ("PAZ PROFUNDA", "NOCHE SERENA"). SIN ASTERISCOS NI CORCHETES]
     GUION:[Oración completa de 1500 a 1800 palabras]
     DESC:[Descripción de 3 párrafos con fuerte SEO. PRIMER párrafo: invita a las oraciones EN VIVO 24 horas del canal ('Únete a nuestras oraciones en vivo las 24 horas — el canal ora sin parar por ti. Activa la campanita para no perderte ninguna oración'). SEGUNDO párrafo: descripción emocional de esta oración. TERCER párrafo: keywords y hashtags.]
     TAGS:[Etiquetas separadas por comas. Incluye siempre: {tags_extras}]
