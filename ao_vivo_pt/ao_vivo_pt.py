@@ -160,11 +160,12 @@ TITULOS_LIVE = {
 DESCRICAO_LIVE = (
     "🙏 Transmissão contínua de oração com Nossa Senhora Aparecida.\n\n"
     "Deixe seu pedido nos comentários — sua Mãe do Céu está ouvindo você.\n\n"
-    "💝 Apoie esta missão de oração contínua:\n"
-    "👉 https://www.paypal.com/donate/?hosted_button_id=P5E5EBVM2HWGS\n\n"
-    "📿 Artigos abençoados:\n"
-    "• Terço de Nossa Senhora → https://amzn.to/40ewSZU\n"
-    "• Bíblia Letra Gigante → https://amzn.to/4afDGLy\n\n"
+    "💝 Apoie esta missão de oração contínua com um PIX de qualquer valor:\n"
+    "👉 Chave PIX (aleatória): 77a8f5a7-def5-484f-9956-e4303ba4e0eb\n\n"
+    "📿 Artigos católicos — links de afiliado: podemos receber comissão por compras elegíveis, sem custo extra para você:\n"
+    "• Bíblia Sagrada Ave-Maria (letra grande) → https://meli.la/1takU1U\n"
+    "• Imagem de Nossa Senhora Aparecida 25 cm → https://meli.la/2kTj8em\n"
+    "• Estátua de Nossa Senhora Aparecida 15 cm → https://meli.la/32fxWNW\n\n"
     "🔔 Ative o sininho · 👍 Curta · ➡️ Visite o canal"
 )
 

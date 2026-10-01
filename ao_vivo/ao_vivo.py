@@ -898,9 +898,6 @@ def criar_live(yt, sufixo: str = "") -> tuple[str, str, str]:
         "Deja tu pedido en los comentarios — tu Madre del Cielo te está escuchando.\n\n"
         "💝 Apoya esta misión de oración continua:\n"
         "👉 https://www.paypal.com/donate/?hosted_button_id=P5E5EBVM2HWGS\n\n"
-        "📿 Artículos bendecidos:\n"
-        "• Rosario de Guadalupe → https://amzn.to/40ewSZU\n"
-        "• Biblia Letra Súper Gigante → https://amzn.to/4afDGLy\n\n"
         "🔔 Activa la campanita · 👍 Dale like · ➡️ Visita el canal"
     )
 
@@ -993,9 +990,6 @@ DESCRICAO_LIVE = (
     "Deja tu pedido en los comentarios — tu Madre del Cielo te está escuchando.\n\n"
     "💝 Apoya esta misión de oración continua:\n"
     "👉 https://www.paypal.com/donate/?hosted_button_id=P5E5EBVM2HWGS\n\n"
-    "📿 Artículos bendecidos:\n"
-    "• Rosario de Guadalupe → https://amzn.to/40ewSZU\n"
-    "• Biblia Letra Súper Gigante → https://amzn.to/4afDGLy\n\n"
     "🔔 Activa la campanita · 👍 Dale like · ➡️ Visita el canal"
 )
 

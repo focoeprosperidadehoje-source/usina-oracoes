@@ -121,7 +121,7 @@ if texto_fixo:
                                 "🙏 ¡Que esta oración bendiga tu día!\n\n"
                                 f"🔴 ESTAMOS EN VIVO AHORA — 24 horas sin parar: tus pedidos y los nombres de "
                                 f"tus seres queridos son mencionados en oración de forma continua.\n"
-                                f"Únete ahora: {LINK_LIVE} 🔔"
+                                "Encuéntranos en vivo en la pestaña «En vivo» de nuestro canal 🔔"
                             )
                         else:
                             link_playlist = "https://www.youtube.com/playlist?list=PLpWSsa4Rjy3ZGBJ-gTbG_v3t_AQXrCK4w"
