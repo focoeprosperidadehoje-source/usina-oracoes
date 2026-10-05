@@ -1349,7 +1349,7 @@ def _gerar_thumbnail_bytes(hora_local: datetime, imgs_dir: Path, w: int, h: int)
         bg = bg.crop((left, top, left + w, top + h))
 
         # Close no rosto (CTR): zoom 1,45x no terço superior + tom quente
-        _Z = 1.45
+        _Z = 1.0  # zoom desligado: recorte caía em detalhe sem rosto (ver handoff 02/10)
         _zw, _zh = int(w / _Z), int(h / _Z)
         _x0 = max(0, min(w - _zw, w // 2 - _zw // 2))
         _y0 = max(0, min(h - _zh, int(h * 0.36) - _zh // 2))
