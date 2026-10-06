@@ -1,0 +1,60 @@
+name: 🔍 Diagnóstico OAuth — client_id por canal
+
+on:
+  workflow_dispatch:
+
+jobs:
+  checar_client_ids:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extrair client_id dos tokens (não expõe segredos)
+        env:
+          TOKEN_ES: ${{ secrets.YOUTUBE_TOKEN_ES }}
+          TOKEN_PT: ${{ secrets.YOUTUBE_TOKEN_PT }}
+          TOKEN_EN: ${{ secrets.YOUTUBE_TOKEN_EN }}
+          TOKEN_EN_SHORTS: ${{ secrets.YOUTUBE_TOKEN_EN_SHORTS }}
+          TOKEN_PT_SHORTS: ${{ secrets.YOUTUBE_TOKEN_PT_SHORTS }}
+          TOKEN_ES_SHORTS: ${{ secrets.YOUTUBE_TOKEN_ES_SHORTS }}
+        run: |
+          python3 - <<'EOF'
+          import os, json
+
+          tokens = {
+              "YOUTUBE_TOKEN_ES":         os.environ.get("TOKEN_ES", ""),
+              "YOUTUBE_TOKEN_PT":         os.environ.get("TOKEN_PT", ""),
+              "YOUTUBE_TOKEN_EN":         os.environ.get("TOKEN_EN", ""),
+              "YOUTUBE_TOKEN_EN_SHORTS":  os.environ.get("TOKEN_EN_SHORTS", ""),
+              "YOUTUBE_TOKEN_PT_SHORTS":  os.environ.get("TOKEN_PT_SHORTS", ""),
+              "YOUTUBE_TOKEN_ES_SHORTS":  os.environ.get("TOKEN_ES_SHORTS", ""),
+          }
+
+          print("=" * 60)
+          print("CLIENT_ID por token (número antes do '-' = projeto GCP)")
+          print("=" * 60)
+          client_ids = {}
+          for name, raw in tokens.items():
+              if not raw:
+                  print(f"  {name}: ⚠️ SECRET NÃO ENCONTRADO")
+                  continue
+              try:
+                  t = json.loads(raw.lstrip("﻿"))
+                  cid = t.get("client_id", "N/A")
+                  # mostra só o número do projeto (parte antes do '-'), não o hash
+                  projeto = cid.split("-")[0] if "-" in cid else cid
+                  print(f"  {name}: projeto GCP = {projeto}")
+                  client_ids.setdefault(projeto, []).append(name)
+              except Exception as e:
+                  print(f"  {name}: ❌ erro ao parsear — {e}")
+
+          print()
+          print("=" * 60)
+          print("RESUMO — tokens que compartilham o mesmo projeto GCP:")
+          print("=" * 60)
+          shared = False
+          for proj, names in client_ids.items():
+              if len(names) > 1:
+                  shared = True
+                  print(f"  Projeto {proj}: {', '.join(names)}")
+          if not shared:
+              print("  ✅ Nenhum compartilhamento detectado — cada token usa projeto próprio")
+          EOF
