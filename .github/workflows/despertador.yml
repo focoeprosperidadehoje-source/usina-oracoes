@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3' # Atualizado para evitar DeprecationWarning
-      - run: pip install google-genai gspread
+      - run: pip install --upgrade google-genai gspread
       - env:
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
