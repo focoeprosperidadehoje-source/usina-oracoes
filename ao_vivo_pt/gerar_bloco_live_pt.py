@@ -150,11 +150,12 @@ def calcular_contexto_sazonal(data: datetime) -> str:
 # ═══════════════════════════════════════════════════════════════════════
 
 def get_youtube_readonly():
-    raw = os.environ.get("YOUTUBE_TOKEN_PT", "")
+    raw = os.environ.get("YOUTUBE_TOKEN_PT", "").lstrip("﻿").strip()
     if not raw:
         return None
     try:
-        data  = json.loads(raw)
+        # raw_decode ignora dados extras após o primeiro JSON válido (token malformado)
+        data, _ = json.JSONDecoder().raw_decode(raw)
         creds = OAuthCredentials.from_authorized_user_info(
             data, scopes=["https://www.googleapis.com/auth/youtube.readonly"]
         )
