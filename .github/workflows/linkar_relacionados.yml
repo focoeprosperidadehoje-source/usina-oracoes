@@ -1,0 +1,53 @@
+name: Vídeos Relacionados (Bloco 4)
+
+on:
+  schedule:
+    - cron: '30 9 * * 6'  # Sábado 09:30 UTC = 06:30 BRT (ES)
+    - cron: '30 9 * * 0'  # Domingo 09:30 UTC = 06:30 BRT (PT)
+  workflow_dispatch:
+    inputs:
+      canal:
+        description: 'Canal (ES ou PT)'
+        required: true
+        default: 'ES'
+        type: choice
+        options:
+          - ES
+          - PT
+
+jobs:
+  linkar-es:
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.canal == 'ES') ||
+      (github.event_name == 'schedule' && github.event.schedule == '30 9 * * 6')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      YOUTUBE_TOKEN_ES_JSON: ${{ secrets.YOUTUBE_TOKEN_ES }}
+      CANAL: ES
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar dependências
+        run: pip install --quiet google-api-python-client google-auth-oauthlib google-auth-httplib2
+      - name: Linkar relacionados (ES)
+        run: python linkar_relacionados.py
+
+  linkar-pt:
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.canal == 'PT') ||
+      (github.event_name == 'schedule' && github.event.schedule == '30 9 * * 0')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      YOUTUBE_TOKEN_PT_JSON: ${{ secrets.YOUTUBE_TOKEN_PT }}
+      CANAL: PT
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar dependências
+        run: pip install --quiet google-api-python-client google-auth-oauthlib google-auth-httplib2
+      - name: Linkar relacionados (PT)
+        run: python linkar_relacionados.py

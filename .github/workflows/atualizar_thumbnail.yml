@@ -1,0 +1,63 @@
+name: Atualizar Thumbnail (Bloco 3)
+
+on:
+  schedule:
+    - cron: '30 8 * * 6'  # Sábado 08:30 UTC = 05:30 BRT (ES — após reset de cota)
+    - cron: '30 8 * * 0'  # Domingo 08:30 UTC = 05:30 BRT (PT — sem conflito com outras runs)
+  workflow_dispatch:
+    inputs:
+      canal:
+        description: 'Canal (ES ou PT)'
+        required: true
+        default: 'ES'
+        type: choice
+        options:
+          - ES
+          - PT
+      video_id:
+        description: 'ID do vídeo (opcional — deixar em branco para processar os últimos 7 dias)'
+        required: false
+        default: ''
+
+jobs:
+  atualizar-es:
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.canal == 'ES') ||
+      (github.event_name == 'schedule' && github.event.schedule == '30 8 * * 6')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      YOUTUBE_TOKEN_ES_JSON: ${{ secrets.YOUTUBE_TOKEN_ES }}
+      CANAL: ES
+      VIDEO_ID: ${{ github.event.inputs.video_id || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar fonte Anton
+        run: wget -q -O Anton.ttf https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf
+      - name: Instalar dependências
+        run: pip install --quiet google-api-python-client google-auth-oauthlib google-auth-httplib2 Pillow
+      - name: Atualizar thumbnails (ES)
+        run: python atualizar_thumbnail.py
+
+  atualizar-pt:
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.canal == 'PT') ||
+      (github.event_name == 'schedule' && github.event.schedule == '30 8 * * 0')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      YOUTUBE_TOKEN_PT_JSON: ${{ secrets.YOUTUBE_TOKEN_PT }}
+      CANAL: PT
+      VIDEO_ID: ${{ github.event.inputs.video_id || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar fonte Anton
+        run: wget -q -O Anton.ttf https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf
+      - name: Instalar dependências
+        run: pip install --quiet google-api-python-client google-auth-oauthlib google-auth-httplib2 Pillow
+      - name: Atualizar thumbnails (PT)
+        run: python atualizar_thumbnail.py
