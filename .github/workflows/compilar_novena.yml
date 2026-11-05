@@ -30,20 +30,17 @@ jobs:
         id: cache-ffmpeg
         uses: actions/cache@v4
         with:
-          path: ffmpeg
+          path: /usr/local/bin/ffmpeg
           key: ffmpeg-static-linux64-n7
 
       - name: Instalar FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
-          wget -q "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-03-31-12-50/ffmpeg-n7.0-latest-linux64-gpl-7.0.tar.xz" -O ffmpeg.tar.xz
-          tar -xf ffmpeg.tar.xz
-          mkdir -p ffmpeg
-          cp ffmpeg-n7.0-latest-linux64-gpl-7.0/bin/ffmpeg ffmpeg/
-          rm -rf ffmpeg.tar.xz ffmpeg-n7.0-latest-linux64-gpl-7.0
-
-      - name: Adicionar FFmpeg ao PATH
-        run: echo "${{ github.workspace }}/ffmpeg" >> $GITHUB_PATH
+          wget -q -O /tmp/ffmpeg.tar.xz \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
+          tar -xf /tmp/ffmpeg.tar.xz --strip-components=2 -C /tmp --wildcards '*/bin/ffmpeg'
+          sudo mv /tmp/ffmpeg /usr/local/bin/ffmpeg
+          sudo chmod +x /usr/local/bin/ffmpeg
 
       - name: Instalar yt-dlp
         run: pip install --quiet yt-dlp
