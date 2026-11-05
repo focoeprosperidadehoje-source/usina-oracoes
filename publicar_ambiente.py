@@ -1,8 +1,8 @@
 """
-Bloco 1 — Publicador de Vídeos Ambiente
-Lê abas ES_AMBIENTE e PT_AMBIENTE na planilha central.
+Bloco 1/2 — Publicador de Vídeos Ambiente e Compilações
+Lê abas *_AMBIENTE e *_NOVENAS_COMPILADAS na planilha central.
 Para vídeos com status='unlisted' e publish_at <= agora,
-muda privacyStatus para 'public' via YouTube API.
+muda privacyStatus para 'public' e adiciona à playlist do canal.
 """
 
 import os, json, time, datetime
@@ -22,6 +22,13 @@ YT_TOKEN_ES_JSON  = os.environ.get("YOUTUBE_TOKEN_ES_JSON")
 YT_TOKEN_PT_JSON  = os.environ.get("YOUTUBE_TOKEN_PT_JSON")
 SHEET_ID          = "1KgIjWrLUVlllhlZB1R9fkHGxxZlLsax1aOVGZrYwgnU"
 
+# Playlists por aba: nome da playlist que receberá os vídeos ao ir a público
+PLAYLISTS_POR_ABA = {
+    'ES_AMBIENTE':           'Música para Dormir — Nuestra Señora',
+    'PT_AMBIENTE':           'Música para Dormir — Nossa Senhora',
+    'ES_NOVENAS_COMPILADAS': 'Novenas Completas — La Morenita',
+}
+
 creds_sheets = Credentials.from_service_account_info(
     json.loads(GOOGLE_JSON),
     scopes=['https://www.googleapis.com/auth/spreadsheets']
@@ -35,7 +42,55 @@ def build_youtube(token_json_str):
     return build('youtube', 'v3', credentials=creds)
 
 # ==============================================================================
-# 2. PUBLICAR VÍDEOS DE UMA ABA
+# 2. PLAYLIST HELPER — encontra ou cria playlist por nome
+# ==============================================================================
+_cache_playlists = {}
+
+def obter_playlist_id(youtube, nome):
+    if nome in _cache_playlists:
+        return _cache_playlists[nome]
+    page_token = None
+    while True:
+        resp = youtube.playlists().list(
+            part="snippet", mine=True, maxResults=50, pageToken=page_token
+        ).execute()
+        for p in resp.get("items", []):
+            if p["snippet"]["title"] == nome:
+                pid = p["id"]
+                _cache_playlists[nome] = pid
+                print(f"  📂 Playlist encontrada: {nome}")
+                return pid
+        page_token = resp.get("nextPageToken")
+        if not page_token:
+            break
+    # Criar
+    r = youtube.playlists().insert(
+        part="snippet,status",
+        body={
+            "snippet": {"title": nome},
+            "status": {"privacyStatus": "public"},
+        }
+    ).execute()
+    pid = r["id"]
+    _cache_playlists[nome] = pid
+    print(f"  📂 Playlist CRIADA: {nome} → {pid}")
+    return pid
+
+def adicionar_playlist(youtube, video_id, playlist_id):
+    try:
+        youtube.playlistItems().insert(
+            part="snippet",
+            body={"snippet": {
+                "playlistId": playlist_id,
+                "resourceId": {"kind": "youtube#video", "videoId": video_id}
+            }}
+        ).execute()
+        print(f"    📂 Adicionado à playlist.")
+    except Exception as e:
+        print(f"    ⚠️  Playlist: {e}")
+
+# ==============================================================================
+# 3. PUBLICAR VÍDEOS DE UMA ABA
 # ==============================================================================
 def publicar_aba(aba_nome, youtube):
     agora = datetime.datetime.now(ZoneInfo("America/Sao_Paulo"))
@@ -52,6 +107,9 @@ def publicar_aba(aba_nome, youtube):
     if not registros:
         print("  → Nenhum registro ainda.")
         return
+
+    nome_playlist = PLAYLISTS_POR_ABA.get(aba_nome)
+    playlist_id = obter_playlist_id(youtube, nome_playlist) if nome_playlist else None
 
     publicados = 0
     for i, row in enumerate(registros, start=2):  # linha 1 = cabeçalho
@@ -79,6 +137,7 @@ def publicar_aba(aba_nome, youtube):
         # Publicar
         titulo = str(row.get('titulo', video_id))
         print(f"  🌐 Publicando: {titulo[:60]}… ({video_id})")
+        publicou = False
         for tentativa in range(3):
             try:
                 youtube.videos().update(
@@ -88,10 +147,10 @@ def publicar_aba(aba_nome, youtube):
                         "status": {"privacyStatus": "public"}
                     }
                 ).execute()
-                # Atualizar planilha
                 col_status = list(registros[0].keys()).index('status') + 1
                 ws.update_cell(i, col_status, 'public')
                 publicados += 1
+                publicou = True
                 print(f"    ✅ Publicado — planilha atualizada.")
                 break
             except Exception as e:
@@ -99,10 +158,13 @@ def publicar_aba(aba_nome, youtube):
                 if tentativa < 2:
                     time.sleep(10)
 
+        if publicou and playlist_id:
+            adicionar_playlist(youtube, video_id, playlist_id)
+
     print(f"  → Total publicados: {publicados}")
 
 # ==============================================================================
-# 3. MAIN
+# 4. MAIN
 # ==============================================================================
 def main():
     print("🌙 Publicador de Vídeos Ambiente\n")
