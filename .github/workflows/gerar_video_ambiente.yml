@@ -2,8 +2,10 @@ name: Gerar Vídeo Ambiente Noturno
 
 on:
   schedule:
-    - cron: '0 10 * * 1'  # Segunda 10:00 UTC = 07:00 BRT
-    - cron: '0 10 * * 4'  # Quinta  10:00 UTC = 07:00 BRT
+    - cron: '0 10 * * 1'  # Segunda 10:00 UTC = 07:00 BRT  (ES cron)
+    - cron: '0 10 * * 4'  # Quinta  10:00 UTC = 07:00 BRT  (ES cron)
+    - cron: '0 10 * * 3'  # Quarta  10:00 UTC = 07:00 BRT  (PT cron)
+    - cron: '0 10 * * 6'  # Sábado  10:00 UTC = 07:00 BRT  (PT cron)
   workflow_dispatch:
     inputs:
       canal:
@@ -17,7 +19,9 @@ on:
 
 jobs:
   gerar-es:
-    if: github.event_name == 'schedule' || github.event.inputs.canal == 'ES'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.canal == 'ES') ||
+      (github.event_name == 'schedule' && (github.event.schedule == '0 10 * * 1' || github.event.schedule == '0 10 * * 4'))
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:
@@ -61,7 +65,9 @@ jobs:
         run: python gerar_video_ambiente.py
 
   gerar-pt:
-    if: github.event.inputs.canal == 'PT'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.canal == 'PT') ||
+      (github.event_name == 'schedule' && (github.event.schedule == '0 10 * * 3' || github.event.schedule == '0 10 * * 6'))
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:

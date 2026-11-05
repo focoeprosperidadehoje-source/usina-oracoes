@@ -2,8 +2,8 @@ name: Compilar Novenas Completas
 
 on:
   schedule:
-    - cron: '30 10 * * 2'  # Terça 10:30 UTC = 07:30 BRT
-    - cron: '30 10 * * 5'  # Sexta  10:30 UTC = 07:30 BRT
+    - cron: '10 8 * * 2'  # Terça 08:10 UTC (logo após reset cota YouTube às 08:00 UTC)
+    - cron: '10 8 * * 5'  # Sexta  08:10 UTC
   workflow_dispatch:
     inputs:
       canal:
