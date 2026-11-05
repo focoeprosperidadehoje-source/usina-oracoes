@@ -110,6 +110,7 @@ def main():
     if YT_TOKEN_ES_JSON:
         yt_es = build_youtube(YT_TOKEN_ES_JSON)
         publicar_aba('ES_AMBIENTE', yt_es)
+        publicar_aba('ES_NOVENAS_COMPILADAS', yt_es)
     else:
         print("⚠️  YOUTUBE_TOKEN_ES_JSON não definido — ES pulado.")
 

@@ -1,0 +1,64 @@
+name: Compilar Novenas Completas
+
+on:
+  schedule:
+    - cron: '30 10 * * 2'  # Terça 10:30 UTC = 07:30 BRT
+    - cron: '30 10 * * 5'  # Sexta  10:30 UTC = 07:30 BRT
+  workflow_dispatch:
+    inputs:
+      canal:
+        description: 'Canal (ES)'
+        required: true
+        default: 'ES'
+        type: choice
+        options:
+          - ES
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_ES }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      CANAL: ES
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: ffmpeg
+          key: ffmpeg-static-linux64-n7
+
+      - name: Instalar FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        run: |
+          wget -q "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-03-31-12-50/ffmpeg-n7.0-latest-linux64-gpl-7.0.tar.xz" -O ffmpeg.tar.xz
+          tar -xf ffmpeg.tar.xz
+          mkdir -p ffmpeg
+          cp ffmpeg-n7.0-latest-linux64-gpl-7.0/bin/ffmpeg ffmpeg/
+          rm -rf ffmpeg.tar.xz ffmpeg-n7.0-latest-linux64-gpl-7.0
+
+      - name: Adicionar FFmpeg ao PATH
+        run: echo "${{ github.workspace }}/ffmpeg" >> $GITHUB_PATH
+
+      - name: Instalar yt-dlp
+        run: pip install --quiet yt-dlp
+
+      - name: Instalar dependências Python
+        run: |
+          pip install --quiet \
+            google-api-python-client \
+            google-auth-oauthlib \
+            google-auth-httplib2 \
+            gspread \
+            pytz
+
+      - name: Verificar espaço em disco
+        run: df -h /tmp
+
+      - name: Compilar novenas
+        run: python compilar_novena.py
