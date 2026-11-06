@@ -339,6 +339,7 @@ REGRAS ABSOLUTAS:
   entardecer, amanhecer), dias da semana nem datas. Se precisar situar o momento,
   diga unicamente "neste momento" ou "agora mesmo"
 - Somente texto que Aparecida fala em voz alta — sem instruções de produção
+- IDIOMA ABSOLUTO: Escreva EXCLUSIVAMENTE em português do Brasil. É TERMINANTEMENTE PROIBIDO qualquer palavra em espanhol, inglês ou outro idioma — incluindo "señor", "gracias", "dios", "hermano", "también", "pero", "corazón".
 - Entre 2600 e 3000 palavras
 """
 
@@ -354,6 +355,10 @@ REGRAS ABSOLUTAS:
     texto   = re.sub(r'(?<!\n)\n(?!\n)', ' ', texto)
     texto   = re.sub(r'\n{3,}', '\n\n', texto)
     texto   = re.sub(r'  +', ' ', texto)
+    texto   = re.sub(r'^\s*\[[^\]]{3,80}\]\s*$', '', texto, flags=re.MULTILINE)
+    texto   = re.sub(r'(?im)^[ \t]*\w+\s+[AB]\s*\([^)\n]{3,40}\)\s*:\s*', '', texto)
+    texto   = re.sub(r'[━─═]{3,}[^\n]*', '', texto)
+    texto   = re.sub(r'\n{3,}', '\n\n', texto)
     return texto.strip()
 
 
@@ -405,6 +410,15 @@ def gerar_audio(texto: str, saida: Path):
 # MAIN
 # ═══════════════════════════════════════════════════════════════════════
 
+_MARCADORES_ES = re.compile(
+    r'\b(señor|señora|gracias|también|pero|corazón|dios|hermano|hermanos|ustedes)\b',
+    re.IGNORECASE
+)
+
+def _tem_espanhol(texto: str) -> bool:
+    return len(_MARCADORES_ES.findall(texto)) >= 2
+
+
 def _gh_error(msg: str):
     linha = msg.replace("\n", " | ").replace("\r", "")[:500]
     print(f"::error::{linha}", flush=True)
@@ -454,6 +468,12 @@ def main():
                     print(f"  [ERRO] Reprovado de novo ({motivo}) — bloco descartado")
                     continue
                 print(f"  Roteiro PT (full): {palavras} palavras — aprovado")
+
+            if _tem_espanhol(roteiro):
+                print("  [WARN] Espanhol detectado no roteiro PT — regenerando...")
+                roteiro = gerar_roteiro_grupo(grupo, contexto, pilar, agora, num_bloco, so_full=True)
+                if _tem_espanhol(roteiro):
+                    print("  [WARN] Espanhol persiste após retry — prosseguindo")
 
             ts      = f"{ts_base}_{i+1:02d}"
             destino = DIR_BLOCOS / f"audio_{ts}.mp3"
