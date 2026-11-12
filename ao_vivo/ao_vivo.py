@@ -121,7 +121,7 @@ BLOCOS_MINIMOS       = 1             # m√≠nimo de blocos para iniciar transmiss√
 VOZ           = "es-MX-DaliaNeural"
 VOZ_RATE      = "-20%"
 VOZ_PITCH     = "-10Hz"
-MODELOS_LIVE  = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]
+MODELOS_LIVE  = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.6-flash"]
 
 CHAVES_CONTEUDO = [c for c in [
     os.environ.get("GEMINI_KEY_LIVE_CONTENT_1", ""),
