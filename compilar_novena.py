@@ -42,6 +42,21 @@ CONFIGS = {
         "tags": ["novena completa", "9 días", "nuestra señora", "oración", "guadalupe",
                  "fe", "milagros", "rosario", "católico"],
     },
+    "PT": {
+        "channel_id": "UClATmmCFTo_UDHgfXPjwyqw",
+        "aba_sheet": "PT_NOVENAS_COMPILADAS",
+        "playlist_nome": "Novenas Completas — Nossa Senhora",
+        "idioma": "pt-BR",
+        "descricao_tpl": (
+            "🙏 {serie} — Novena Completa de 9 Dias\n\n"
+            "Reúne os 9 dias completos para você rezar sem interrupções.\n\n"
+            "▶ Oração 24H ao Vivo → https://youtube.com/channel/UClATmmCFTo_UDHgfXPjwyqw/live\n\n"
+            "#Novena #NossaSenhora #OraçãoCatólica #Aparecida #Fé #Milagres"
+        ),
+        "titulo_tpl": "Novena Completa de 9 Dias — {serie} 🙏",
+        "tags": ["novena completa", "9 dias", "nossa senhora", "oração", "aparecida",
+                 "fé", "milagres", "rosário", "católico"],
+    },
 }
 
 os.makedirs(PASTA_TEMP, exist_ok=True)
@@ -126,9 +141,11 @@ def agrupar_novenas(videos):
         dia = int(m.group(1))
         if dia < 1 or dia > 9:
             continue
-        # Nome da série = título até "Día N" (remove sufixo)
+        # Nome da série = prefixo antes de "Día N 🙏 <promessa>"
+        # A promessa varia a cada dia, então é preciso remover tudo a partir do 🙏
         serie = PADRAO_DIA.sub('', v['titulo'])
-        serie = re.sub(r'\s*[-—–🙏]+\s*$', '', serie).strip()
+        serie = re.sub(r'\s*🙏.*', '', serie)          # remove 🙏 + promessa do dia
+        serie = re.sub(r'\s*[-—–|]+\s*$', '', serie).strip()
         serie = re.sub(r'\s{2,}', ' ', serie)
         if not serie:
             continue
