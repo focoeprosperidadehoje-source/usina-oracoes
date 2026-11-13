@@ -101,7 +101,27 @@ def series_ja_compiladas(ws):
 # ==============================================================================
 # 4. DESCOBRIR VÍDEOS DE NOVENA NO CANAL
 # ==============================================================================
-PADRAO_DIA = re.compile(r'\bD[ií]a\s+(\d{1,2})\b', re.IGNORECASE)
+# ES: "Día N" / "Dia N"  |  PT: "Nº Dia" / "N° Dia"
+PADRAO_DIA_ES = re.compile(r'\bD[ií]a\s+(\d{1,2})\b', re.IGNORECASE)
+PADRAO_DIA_PT = re.compile(r'\b(\d{1,2})[°º]\s*[Dd]ia\b', re.IGNORECASE)
+
+def extrair_dia(titulo):
+    m = PADRAO_DIA_ES.search(titulo)
+    if m:
+        return int(m.group(1)), 'es'
+    m = PADRAO_DIA_PT.search(titulo)
+    if m:
+        return int(m.group(1)), 'pt'
+    return None, None
+
+def calcular_serie(titulo, fmt):
+    if fmt == 'es':
+        s = PADRAO_DIA_ES.sub('', titulo)
+    else:
+        s = PADRAO_DIA_PT.sub('', titulo)
+    s = re.sub(r'\s*🙏.*', '', s)
+    s = re.sub(r'\s*[-—–|]+\s*$', '', s).strip()
+    return re.sub(r'\s{2,}', ' ', s)
 
 def listar_videos_canal():
     """Retorna lista de {video_id, titulo, published_at} para todos os vídeos públicos."""
@@ -142,18 +162,10 @@ def agrupar_novenas(videos):
     """Agrupa vídeos de novena por série, retornando grupos completos (9 dias)."""
     grupos = defaultdict(dict)
     for v in videos:
-        m = PADRAO_DIA.search(v['titulo'])
-        if not m:
+        dia, fmt = extrair_dia(v['titulo'])
+        if dia is None or dia < 1 or dia > 9:
             continue
-        dia = int(m.group(1))
-        if dia < 1 or dia > 9:
-            continue
-        # Nome da série = prefixo antes de "Día N 🙏 <promessa>"
-        # A promessa varia a cada dia, então é preciso remover tudo a partir do 🙏
-        serie = PADRAO_DIA.sub('', v['titulo'])
-        serie = re.sub(r'\s*🙏.*', '', serie)          # remove 🙏 + promessa do dia
-        serie = re.sub(r'\s*[-—–|]+\s*$', '', serie).strip()
-        serie = re.sub(r'\s{2,}', ' ', serie)
+        serie = calcular_serie(v['titulo'], fmt)
         if not serie:
             continue
         # Em caso de duplicata (re-gravação), fica com o mais recente
