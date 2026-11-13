@@ -105,17 +105,24 @@ PADRAO_DIA = re.compile(r'\bD[ií]a\s+(\d{1,2})\b', re.IGNORECASE)
 
 def listar_videos_canal():
     """Retorna lista de {video_id, titulo, published_at} para todos os vídeos públicos."""
+    from googleapiclient.errors import HttpError
     uploads_id = "UU" + cfg['channel_id'][2:]  # UC... → UU...
     videos = []
     page_token = None
     print("  📺 Buscando vídeos do canal (uploads playlist)...")
     while True:
-        resp = youtube.playlistItems().list(
-            part="snippet",
-            playlistId=uploads_id,
-            maxResults=50,
-            pageToken=page_token
-        ).execute()
+        try:
+            resp = youtube.playlistItems().list(
+                part="snippet",
+                playlistId=uploads_id,
+                maxResults=50,
+                pageToken=page_token
+            ).execute()
+        except HttpError as e:
+            if e.resp.status == 403 and "quotaExceeded" in str(e):
+                print(f"[WARN] quotaExceeded ao listar videos — cota esgotada. Nada compilado.")
+                return []
+            raise
         for item in resp.get("items", []):
             sn = item["snippet"]
             vid = sn["resourceId"]["videoId"]
