@@ -57,6 +57,12 @@ def _gerar(modelo, prompt):
 # ==============================================================================
 # CALENDÁRIO CULTURAL E LITÚRGICO (México / Latino)
 # ==============================================================================
+def _ngrama_titulo(titulo, n=3):
+    """Primeiras N palavras, minúsculas, sem pontuação — usadas para detectar repetição."""
+    palavras = re.sub(r'[^\w\s]', '', titulo.lower()).split()
+    return tuple(palavras[:n])
+
+
 def calcular_contexto_sazonal(data_alvo):
     """Retorna contexto especial de datas litúrgicas/culturais para o canal ES."""
     ano = data_alvo.year
@@ -141,6 +147,18 @@ if len(todas_linhas) > 500:
     todas_linhas = aba.get_all_values()
 
 proxima_linha_vazia = len(todas_linhas) + 1
+
+# Memória de títulos recentes (14 dias) para anti-repetição
+_cutoff_repeticao = hoje - datetime.timedelta(days=14)
+_ngrams_recentes = set()
+for _linha in todas_linhas[1:]:
+    if len(_linha) > 6 and _linha[6].strip():
+        try:
+            _d = datetime.datetime.strptime(_linha[0].strip(), '%Y-%m-%d').date()
+            if _d >= _cutoff_repeticao:
+                _ngrams_recentes.add(_ngrama_titulo(_linha[6].strip()))
+        except:
+            pass
 
 # ==============================================================================
 # 3. SCANNER DE BURACOS (IGNORA O PASSADO)
@@ -420,6 +438,41 @@ for video in grade_para_processar:
                     tags_final = tg2.group(1).replace('*', '').replace('[', '').replace(']', '').strip()
         if not titulo_final or len(titulo_final) < 10:
             titulo_final = f"{tema_gerado} - {titulo_sufixo}"
+
+        # ═══ PORTÃO ANTI-REPETIÇÃO ═══
+        # Se as 3 primeiras palavras do título já aparecem nos últimos 14 dias,
+        # pede APENAS um novo título ao modelo (sem regenerar o guion inteiro).
+        if _ngrama_titulo(titulo_final) in _ngrams_recentes:
+            print(f"   ⚠️ Início de título repetido: '{titulo_final[:55]}' — solicitando variação...")
+            _angulo = (
+                "un ángulo diferente: en lugar de 'La Morenita [acción]', prueba '[Dolor del oyente]...', '[Promesa urgente]...', 'Cuando Ella...' o 'No estás solo/a...'"
+                if persona == 'MARIA' else
+                "un ángulo diferente: en lugar de '[Dolor] — Haz Esta Oración', prueba '[Promesa]...', 'Hoy Él Viene Por...', 'No Todo Está Perdido...' o similar"
+            )
+            _prompt_var = (
+                f"Genera SOLO el título de un video de oración devocional. SIN guión, sin etiquetas, solo el título.\n"
+                f"Persona: {persona_prompt}. Pilar: '{pilar_do_dia}'. Tema: '{tema_gerado}'.\n"
+                f"OBLIGATORIO: Debe terminar con ' - {titulo_sufixo}'.\n"
+                f"PROHIBIDO: Empezar con las mismas palabras que '{titulo_final[:40]}'.\n"
+                f"USA {_angulo}.\n"
+                f"Responde con una sola línea de texto, sin comillas, sin etiquetas."
+            )
+            _titulo_var = None
+            for _i in range(3):
+                try:
+                    _titulo_var = _gerar(modelos_cascata[_i], _prompt_var).replace('*', '').replace('"', '').strip()
+                    if _titulo_var and len(_titulo_var) >= 15:
+                        break
+                except:
+                    time.sleep(esperas_exponenciais[_i])
+            if _titulo_var and len(_titulo_var) >= 15:
+                titulo_final = _titulo_var[:120]
+                _ngrams_recentes.add(_ngrama_titulo(titulo_final))
+                print(f"   ✅ Variação aceita: '{titulo_final[:55]}'")
+            else:
+                _ngrams_recentes.add(_ngrama_titulo(titulo_final))
+                print(f"   ℹ️ Variação não obtida — mantendo título original.")
+
         if not thumb_final:
             thumb_final = " ".join(tema_gerado.split()[:4]).upper()
         if not desc_final or len(desc_final) < 80:
