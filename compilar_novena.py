@@ -215,6 +215,18 @@ def obter_ou_criar_playlist():
 # ==============================================================================
 # 6. BAIXAR + COMPILAR
 # ==============================================================================
+COOKIES_PATH = os.path.join(PASTA_TEMP, "yt_cookies.txt")
+
+def _preparar_cookies():
+    """Escreve YT_COOKIES (secret) em arquivo para o yt-dlp usar."""
+    conteudo = os.environ.get("YT_COOKIES", "")
+    if conteudo.strip():
+        with open(COOKIES_PATH, "w") as f:
+            f.write(conteudo)
+        print("  🍪 Cookies carregados para yt-dlp")
+        return True
+    return False
+
 def baixar_video(video_id, destino_dir):
     url = f"https://www.youtube.com/watch?v={video_id}"
     saida = os.path.join(destino_dir, f"{video_id}.mp4")
@@ -226,9 +238,13 @@ def baixar_video(video_id, destino_dir):
         "--merge-output-format", "mp4",
         "--sleep-interval", "3",
         "--max-sleep-interval", "7",
+        "--extractor-retries", "3",
+        "--fragment-retries", "3",
         "-o", saida,
-        url,
     ]
+    if os.path.exists(COOKIES_PATH):
+        cmd += ["--cookies", COOKIES_PATH]
+    cmd.append(url)
     for tentativa in range(3):
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode == 0 and os.path.exists(saida):
@@ -309,6 +325,7 @@ def adicionar_a_playlist(video_id, playlist_id):
 def main():
     print(f"\n📿 Bloco 2 — Compilador de Novenas — Canal {CANAL}\n")
 
+    _preparar_cookies()
     aba = obter_aba_compiladas()
     ja_compiladas = series_ja_compiladas(aba)
     print(f"Séries já compiladas: {len(ja_compiladas)}")

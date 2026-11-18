@@ -23,6 +23,7 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_ES }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      YT_COOKIES: ${{ secrets.YT_COOKIES }}
       CANAL: ES
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +69,7 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_PT }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      YT_COOKIES: ${{ secrets.YT_COOKIES }}
       CANAL: PT
     steps:
       - uses: actions/checkout@v4
