@@ -219,9 +219,9 @@ COOKIES_PATH = os.path.join(PASTA_TEMP, "yt_cookies.txt")
 
 def _preparar_cookies():
     """Escreve YT_COOKIES (secret) em arquivo para o yt-dlp usar."""
-    conteudo = os.environ.get("YT_COOKIES", "")
+    conteudo = os.environ.get("YT_COOKIES", "").lstrip('﻿')
     if conteudo.strip():
-        with open(COOKIES_PATH, "w") as f:
+        with open(COOKIES_PATH, "w", encoding="utf-8") as f:
             f.write(conteudo)
         print("  🍪 Cookies carregados para yt-dlp")
         return True
